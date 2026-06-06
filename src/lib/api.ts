@@ -38,20 +38,13 @@ export async function placeDie(
   gameId: string,
   slotId: string,
   dieValue: number,
-): Promise<{ ok: boolean; phase: string }> {
-  return callFunction('place-die', { gameId, slotId, dieValue });
+  originalDie?: number,
+): Promise<{ ok: boolean; phase: string; status: string }> {
+  return callFunction('place-die', { gameId, slotId, dieValue, originalDie });
 }
 
-export async function revealRound(gameId: string): Promise<{ ok: boolean }> {
-  return callFunction('reveal-round', { gameId });
-}
-
-export async function resolveRound(gameId: string): Promise<{ ok: boolean; status: string; phase: string }> {
-  return callFunction('resolve-round', { gameId });
-}
-
-export async function useConcentration(gameId: string, takenBackSlotId: string): Promise<{ ok: boolean }> {
-  return callFunction('use-concentration', { gameId, takenBackSlotId });
+export async function reroll(gameId: string, indices: number[]): Promise<{ ok: boolean; rerollRemaining: number }> {
+  return callFunction('reroll', { gameId, indices });
 }
 
 export async function sendMessage(gameId: string, role: string, content: string): Promise<void> {

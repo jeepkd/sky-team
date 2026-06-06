@@ -1,30 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { DEFAULT_CONFIG } from '../config';
+import { createInitialState } from '../state';
 import { buildSlots } from '../slots';
 import { validatePlacement, applyPlacement } from '../validate';
-import { resolveRound, checkEndConditions } from '../resolve';
+import { engineAdvance, checkVictory } from '../resolve';
 import type { GameState } from '../types';
 
 const cfg = DEFAULT_CONFIG;
 
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
-    round: 1,
+    ...createInitialState(cfg),
     phase: 'PLACING',
     turn: 'pilot',
-    approachPos: 0,
-    altitude: 3,
-    speed: 3,
-    axisTilt: 0,
-    flapsLevel: 0,
-    gearDeployed: [false, false],
-    brakeForce: 0,
-    traffic: [],
-    placed: [],
     remaining: { pilot: [1, 2, 3, 4], copilot: [4, 5, 6, 3] },
-    concentrationTokens: { pilot: cfg.rules.startingConcentration, copilot: cfg.rules.startingConcentration },
-    coffeeUsed: { pilot: false, copilot: false },
-    status: 'active',
     ...overrides,
   };
 }
@@ -34,86 +23,69 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
 // ---------------------------------------------------------------------------
 describe('buildSlots', () => {
   const slots = buildSlots(cfg);
+  const ids = slots.map((s) => s.id);
 
-  it('builds expected slot ids', () => {
-    const ids = slots.map((s) => s.id);
-    expect(ids).toContain('axis_pilot');
-    expect(ids).toContain('axis_copilot');
-    expect(ids).toContain('engine_left');
-    expect(ids).toContain('engine_right');
-    expect(ids).toContain('radio');
-    expect(ids).toContain('gear_left');
-    expect(ids).toContain('gear_right');
-    expect(ids).toContain('flaps_1');
-    expect(ids).toContain('brakes_1');
+  it('builds the expected slot ids', () => {
+    for (const id of [
+      'axis_pilot', 'axis_copilot', 'engine_pilot', 'engine_copilot',
+      'radio_pilot', 'radio_copilot_1', 'radio_copilot_2',
+      'flaps_1', 'flaps_2', 'flaps_3', 'flaps_4',
+      'gear_1', 'gear_2', 'gear_3',
+      'brakes_1', 'brakes_2', 'brakes_3',
+      'concentration_1', 'concentration_2', 'concentration_3',
+    ]) {
+      expect(ids).toContain(id);
+    }
   });
 
-  it('axis_pilot owner is pilot', () => {
-    const slot = slots.find((s) => s.id === 'axis_pilot')!;
-    expect(slot.owner).toBe('pilot');
-  });
-
-  it('engine_left rejects die > 3', () => {
-    const slot = slots.find((s) => s.id === 'engine_left')!;
+  it('engines accept any value', () => {
+    const ep = slots.find((s) => s.id === 'engine_pilot')!;
     const state = makeState();
-    const result = slot.validate(4, state, cfg);
-    expect(result.ok).toBe(false);
+    expect(ep.validate(1, state, cfg).ok).toBe(true);
+    expect(ep.validate(6, state, cfg).ok).toBe(true);
   });
 
-  it('engine_left accepts die <= 3', () => {
-    const slot = slots.find((s) => s.id === 'engine_left')!;
+  it('flaps require the right value pair', () => {
+    const f1 = slots.find((s) => s.id === 'flaps_1')!;
     const state = makeState();
-    expect(slot.validate(1, state, cfg).ok).toBe(true);
-    expect(slot.validate(3, state, cfg).ok).toBe(true);
+    expect(f1.validate(1, state, cfg).ok).toBe(true);
+    expect(f1.validate(2, state, cfg).ok).toBe(true);
+    expect(f1.validate(3, state, cfg).ok).toBe(false);
   });
 
-  it('engine_right rejects die < 4', () => {
-    const slot = slots.find((s) => s.id === 'engine_right')!;
+  it('flaps must be deployed in order', () => {
+    const f2 = slots.find((s) => s.id === 'flaps_2')!;
+    expect(f2.validate(2, makeState({ flapsLevel: 0 }), cfg).ok).toBe(false);
+    expect(f2.validate(2, makeState({ flapsLevel: 1 }), cfg).ok).toBe(true);
+  });
+
+  it('flaps_2 is placeable if flaps_1 was placed earlier this round', () => {
+    const f2 = slots.find((s) => s.id === 'flaps_2')!;
+    const state = makeState({ flapsLevel: 0, placed: [{ slotId: 'flaps_1', role: 'copilot', value: 1 }] });
+    expect(f2.validate(3, state, cfg).ok).toBe(true);
+  });
+
+  it('landing gear requires the right value pair and is order-free', () => {
+    const g2 = slots.find((s) => s.id === 'gear_2')!; // 3/4
     const state = makeState();
-    expect(slot.validate(3, state, cfg).ok).toBe(false);
+    expect(g2.validate(3, state, cfg).ok).toBe(true);
+    expect(g2.validate(4, state, cfg).ok).toBe(true);
+    expect(g2.validate(5, state, cfg).ok).toBe(false);
   });
 
-  it('engine_right accepts die >= 4', () => {
-    const slot = slots.find((s) => s.id === 'engine_right')!;
-    const state = makeState();
-    expect(slot.validate(4, state, cfg).ok).toBe(true);
-    expect(slot.validate(6, state, cfg).ok).toBe(true);
+  it('brakes require exact values in order', () => {
+    const b1 = slots.find((s) => s.id === 'brakes_1')!; // 2
+    const b2 = slots.find((s) => s.id === 'brakes_2')!; // 4
+    expect(b1.validate(2, makeState(), cfg).ok).toBe(true);
+    expect(b1.validate(4, makeState(), cfg).ok).toBe(false);
+    expect(b2.validate(4, makeState({ brakeLevel: 0 }), cfg).ok).toBe(false);
+    expect(b2.validate(4, makeState({ brakeLevel: 1 }), cfg).ok).toBe(true);
   });
 
-  it('flaps_1 rejects die below minimum', () => {
-    const slot = slots.find((s) => s.id === 'flaps_1')!;
-    const state = makeState();
-    expect(slot.validate(cfg.rules.flapsRequirements[0] - 1, state, cfg).ok).toBe(false);
-  });
-
-  it('flaps_2 requires flaps_1 to be deployed first', () => {
-    const slot = slots.find((s) => s.id === 'flaps_2')!;
-    const state = makeState({ flapsLevel: 0 });
-    expect(slot.validate(5, state, cfg).ok).toBe(false);
-  });
-
-  it('flaps_2 accepts valid die when flap 1 already deployed', () => {
-    const slot = slots.find((s) => s.id === 'flaps_2')!;
-    const state = makeState({ flapsLevel: 1 });
-    expect(slot.validate(cfg.rules.flapsRequirements[1], state, cfg).ok).toBe(true);
-  });
-
-  it('gear_left rejects die below gearMinValue', () => {
-    const slot = slots.find((s) => s.id === 'gear_left')!;
-    const state = makeState();
-    expect(slot.validate(cfg.rules.gearMinValue - 1, state, cfg).ok).toBe(false);
-  });
-
-  it('gear_left accepts die >= gearMinValue', () => {
-    const slot = slots.find((s) => s.id === 'gear_left')!;
-    const state = makeState();
-    expect(slot.validate(cfg.rules.gearMinValue, state, cfg).ok).toBe(true);
-  });
-
-  it('slot is rejected if already occupied', () => {
-    const slot = slots.find((s) => s.id === 'axis_pilot')!;
-    const state = makeState({ placed: [{ slotId: 'axis_pilot', role: 'pilot', value: 3 }] });
-    expect(slot.validate(4, state, cfg).ok).toBe(false);
+  it('concentration accepts any value until coffee is maxed', () => {
+    const c1 = slots.find((s) => s.id === 'concentration_1')!;
+    expect(c1.validate(5, makeState({ coffee: 0 }), cfg).ok).toBe(true);
+    expect(c1.validate(5, makeState({ coffee: cfg.rules.coffeeMax }), cfg).ok).toBe(false);
   });
 });
 
@@ -121,161 +93,131 @@ describe('buildSlots', () => {
 // validatePlacement
 // ---------------------------------------------------------------------------
 describe('validatePlacement', () => {
-  it('rejects if not PLACING phase', () => {
-    const state = makeState({ phase: 'REVEALING' });
-    const result = validatePlacement(state, { role: 'pilot', slotId: 'axis_pilot', dieValue: 3 }, cfg);
-    expect(result.ok).toBe(false);
+  it('rejects wrong phase / turn / ownership', () => {
+    expect(validatePlacement(makeState({ phase: 'ENDED' }), { role: 'pilot', slotId: 'axis_pilot', dieValue: 1 }, cfg).ok).toBe(false);
+    expect(validatePlacement(makeState({ turn: 'copilot' }), { role: 'pilot', slotId: 'axis_pilot', dieValue: 1 }, cfg).ok).toBe(false);
+    expect(validatePlacement(makeState(), { role: 'pilot', slotId: 'axis_copilot', dieValue: 1 }, cfg).ok).toBe(false);
   });
 
-  it('rejects if wrong turn', () => {
-    const state = makeState({ turn: 'copilot' });
-    const result = validatePlacement(state, { role: 'pilot', slotId: 'axis_pilot', dieValue: 3 }, cfg);
-    expect(result.ok).toBe(false);
+  it('rejects a die the player does not have', () => {
+    expect(validatePlacement(makeState({ remaining: { pilot: [1, 2], copilot: [] } }), { role: 'pilot', slotId: 'axis_pilot', dieValue: 5 }, cfg).ok).toBe(false);
   });
 
-  it('rejects if die not in remaining', () => {
-    const state = makeState({ remaining: { pilot: [1, 2], copilot: [4, 5, 6, 3] } });
-    const result = validatePlacement(state, { role: 'pilot', slotId: 'axis_pilot', dieValue: 5 }, cfg);
-    expect(result.ok).toBe(false);
+  it('accepts a valid placement', () => {
+    expect(validatePlacement(makeState(), { role: 'pilot', slotId: 'axis_pilot', dieValue: 1 }, cfg).ok).toBe(true);
   });
 
-  it('rejects unknown slot', () => {
-    const state = makeState();
-    const result = validatePlacement(state, { role: 'pilot', slotId: 'fake_slot', dieValue: 3 }, cfg);
-    expect(result.ok).toBe(false);
+  it('allows a coffee-adjusted die when tokens are available', () => {
+    // hand has a 3; want to place a 1 (cost 2 coffee)
+    const state = makeState({ coffee: 2, remaining: { pilot: [3], copilot: [] } });
+    expect(validatePlacement(state, { role: 'pilot', slotId: 'radio_pilot', dieValue: 1, originalDie: 3 }, cfg).ok).toBe(true);
   });
 
-  it('rejects if role does not own slot', () => {
-    const state = makeState();
-    // pilot cannot place in axis_copilot
-    const result = validatePlacement(state, { role: 'pilot', slotId: 'axis_copilot', dieValue: 3 }, cfg);
-    expect(result.ok).toBe(false);
-  });
-
-  it('accepts valid placement', () => {
-    const state = makeState();
-    const result = validatePlacement(state, { role: 'pilot', slotId: 'axis_pilot', dieValue: 3 }, cfg);
-    expect(result.ok).toBe(true);
+  it('rejects a coffee adjustment beyond available tokens', () => {
+    const state = makeState({ coffee: 1, remaining: { pilot: [3], copilot: [] } });
+    expect(validatePlacement(state, { role: 'pilot', slotId: 'radio_pilot', dieValue: 1, originalDie: 3 }, cfg).ok).toBe(false);
   });
 });
 
 // ---------------------------------------------------------------------------
-// applyPlacement
+// applyPlacement — immediate resolution
 // ---------------------------------------------------------------------------
 describe('applyPlacement', () => {
-  it('removes die from remaining', () => {
-    const state = makeState({ remaining: { pilot: [1, 2, 3, 4], copilot: [4, 5, 6, 3] } });
-    const next = applyPlacement(state, { role: 'pilot', slotId: 'axis_pilot', dieValue: 3 }, cfg);
-    expect(next.remaining.pilot).not.toContain(3);
-    expect(next.remaining.pilot).toHaveLength(3);
+  it('removes the die, places it, and passes the turn', () => {
+    const { state } = applyPlacement(makeState(), { role: 'pilot', slotId: 'axis_pilot', dieValue: 3 }, cfg);
+    expect(state.remaining.pilot).not.toContain(3);
+    expect(state.placed).toContainEqual({ slotId: 'axis_pilot', role: 'pilot', value: 3 });
+    expect(state.turn).toBe('copilot');
   });
 
-  it('appends to placed', () => {
-    const state = makeState();
-    const next = applyPlacement(state, { role: 'pilot', slotId: 'axis_pilot', dieValue: 3 }, cfg);
-    expect(next.placed).toHaveLength(1);
-    expect(next.placed[0]).toEqual({ slotId: 'axis_pilot', role: 'pilot', value: 3 });
+  it('spends coffee and removes the original die from hand', () => {
+    const state0 = makeState({ coffee: 2, turn: 'pilot', remaining: { pilot: [3, 1], copilot: [2] } });
+    const { state } = applyPlacement(state0, { role: 'pilot', slotId: 'radio_pilot', dieValue: 1, originalDie: 3 }, cfg);
+    expect(state.coffee).toBe(0);
+    expect(state.remaining.pilot).toEqual([1]);
+    expect(state.placed[0].value).toBe(1);
   });
 
-  it('flips turn from pilot to copilot', () => {
-    const state = makeState({ turn: 'pilot' });
-    const next = applyPlacement(state, { role: 'pilot', slotId: 'axis_pilot', dieValue: 3 }, cfg);
-    expect(next.turn).toBe('copilot');
+  it('accumulates axis tilt when both axis dice are placed', () => {
+    let s = makeState({ axisTilt: 0 });
+    s = applyPlacement(s, { role: 'pilot', slotId: 'axis_pilot', dieValue: 5 }, cfg).state;
+    s = applyPlacement(s, { role: 'copilot', slotId: 'axis_copilot', dieValue: 3 }, cfg).state;
+    expect(s.axisTilt).toBe(2); // 5 - 3
   });
 
-  it('sets phase to REVEALING when all dice placed', () => {
-    // Start with only 1 die left between both players
-    const state = makeState({
-      turn: 'pilot',
-      placed: Array.from({ length: cfg.rules.dicePerPlayer * 2 - 1 }, (_, i) => ({
-        slotId: `flaps_${i + 1}`,
-        role: 'pilot' as const,
-        value: 3,
-      })),
-      remaining: { pilot: [2], copilot: [] },
-    });
-    const next = applyPlacement(state, { role: 'pilot', slotId: 'axis_pilot', dieValue: 2 }, cfg);
-    expect(next.phase).toBe('REVEALING');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// resolveRound — known scenario: normal round advances approach position
-// ---------------------------------------------------------------------------
-describe('resolveRound', () => {
-  it('computes axis tilt from placed dice', () => {
-    const state = makeState({
-      placed: [
-        { slotId: 'axis_pilot', role: 'pilot', value: 4 },
-        { slotId: 'axis_copilot', role: 'copilot', value: 2 },
-      ],
-    });
-    const { state: next } = resolveRound(state, cfg);
-    // axisTilt = 4 - 2 = 2
-    expect(next.axisTilt).toBe(2);
+  it('axis tilt is cumulative and can crash on a spin', () => {
+    let s = makeState({ axisTilt: cfg.rules.axisSpinLimit - 1, remaining: { pilot: [6], copilot: [1] } });
+    s = applyPlacement(s, { role: 'pilot', slotId: 'axis_pilot', dieValue: 6 }, cfg).state;
+    s = applyPlacement(s, { role: 'copilot', slotId: 'axis_copilot', dieValue: 1 }, cfg).state;
+    expect(s.status).toBe('crashed');
   });
 
-  it('computes speed from engines', () => {
-    const state = makeState({
-      placed: [
-        { slotId: 'engine_left', role: 'pilot', value: 2 },
-        { slotId: 'engine_right', role: 'copilot', value: 5 },
-      ],
-    });
-    const { state: next } = resolveRound(state, cfg);
-    expect(next.speed).toBe(7);
+  it('advances the approach track when engines resolve', () => {
+    let s = makeState({ approachPos: 1, remaining: { pilot: [4], copilot: [5] } });
+    s = applyPlacement(s, { role: 'pilot', slotId: 'engine_pilot', dieValue: 4 }, cfg).state;
+    s = applyPlacement(s, { role: 'copilot', slotId: 'engine_copilot', dieValue: 5 }, cfg).state;
+    // sum 9 > orange(8) → advance 2
+    expect(s.approachPos).toBe(3);
+    expect(s.lastAdvance).toBe(2);
   });
 
-  it('advances approach position', () => {
-    const state = makeState({ approachPos: 0, speed: 3 });
-    const { state: next } = resolveRound(state, cfg);
-    expect(next.approachPos).toBeGreaterThan(0);
+  it('gains coffee from a concentration placement', () => {
+    const { state } = applyPlacement(makeState({ coffee: 0 }), { role: 'pilot', slotId: 'concentration_1', dieValue: 4 }, cfg);
+    expect(state.coffee).toBe(1);
   });
 
-  it('emits approach_advanced event', () => {
-    const state = makeState();
-    const { events } = resolveRound(state, cfg);
-    expect(events.some((e) => e.type === 'approach_advanced')).toBe(true);
-  });
-
-  it('advances round counter', () => {
-    const state = makeState({ round: 1 });
-    const { state: next } = resolveRound(state, cfg);
-    expect(next.round).toBe(2);
-  });
-
-  it('clears placed dice for next round', () => {
-    const state = makeState({ placed: [{ slotId: 'axis_pilot', role: 'pilot', value: 3 }] });
-    const { state: next } = resolveRound(state, cfg);
-    if (next.phase !== 'ENDED') {
-      expect(next.placed).toHaveLength(0);
-    }
+  it('deploys flaps and moves the orange marker', () => {
+    const s = makeState({ turn: 'copilot', remaining: { copilot: [1], pilot: [] } });
+    const { state } = applyPlacement(s, { role: 'copilot', slotId: 'flaps_1', dieValue: 1 }, cfg);
+    expect(state.flapsLevel).toBe(1);
+    expect(state.aeroOrange).toBe(cfg.rules.aeroOrangeStart + 1);
   });
 });
 
 // ---------------------------------------------------------------------------
-// checkEndConditions
+// engineAdvance
 // ---------------------------------------------------------------------------
-describe('checkEndConditions', () => {
-  it('returns crashed when axis tilt exceeds limit', () => {
-    const limit = cfg.rules.axisTiltLimitPerRound[0];
-    const state = makeState({ axisTilt: limit + 1 });
-    expect(checkEndConditions(state, cfg)).toBe('crashed');
+describe('engineAdvance', () => {
+  it('maps sums to 0/1/2 around the markers (4, 8)', () => {
+    expect(engineAdvance(4, 4, 8)).toBe(0);
+    expect(engineAdvance(5, 4, 8)).toBe(1);
+    expect(engineAdvance(8, 4, 8)).toBe(1);
+    expect(engineAdvance(9, 4, 8)).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkVictory
+// ---------------------------------------------------------------------------
+describe('checkVictory', () => {
+  const airport = cfg.airport.approachTrackLength;
+
+  it('wins when every condition is met', () => {
+    const s = makeState({
+      approachPos: airport,
+      traffic: [],
+      gearDeployed: [true, true, true],
+      flapsLevel: cfg.rules.flaps.length,
+      axisTilt: 0,
+      brakeLevel: 2, // threshold 5
+      speed: 3,
+    });
+    expect(checkVictory(s, cfg)).toBe('victory');
   });
 
-  it('returns null when tilt is within limit', () => {
-    const limit = cfg.rules.axisTiltLimitPerRound[0];
-    const state = makeState({ axisTilt: limit });
-    expect(checkEndConditions(state, cfg)).toBeNull();
+  it('fails when axis is not level', () => {
+    const s = makeState({
+      approachPos: airport, traffic: [], gearDeployed: [true, true, true],
+      flapsLevel: cfg.rules.flaps.length, axisTilt: 1, brakeLevel: 2, speed: 3,
+    });
+    expect(checkVictory(s, cfg)).toBe('failed');
   });
 
-  it('returns crashed when traffic token on approach pos', () => {
-    const state = makeState({ approachPos: 3, traffic: [3] });
-    expect(checkEndConditions(state, cfg)).toBe('crashed');
-  });
-
-  it('returns null when no traffic at current pos', () => {
-    const state = makeState({ approachPos: 3, traffic: [5] });
-    expect(checkEndConditions(state, cfg)).toBeNull();
+  it('fails when speed is not less than the brake marker', () => {
+    const s = makeState({
+      approachPos: airport, traffic: [], gearDeployed: [true, true, true],
+      flapsLevel: cfg.rules.flaps.length, axisTilt: 0, brakeLevel: 1, speed: 5, // threshold 3
+    });
+    expect(checkVictory(s, cfg)).toBe('failed');
   });
 });

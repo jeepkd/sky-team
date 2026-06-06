@@ -31,13 +31,19 @@ You play as the COPILOT. You will be given:
 
 Your task: choose the best die-to-slot placement using the place_die tool.
 
+Key rules:
+- Axis (orange): mandatory each round; the difference between pilot & copilot dice tilts the plane (cumulative). Keep it near level.
+- Engines (orange): mandatory; any value. The SUM of both engine dice vs the aerodynamics markers advances the plane 0/1/2 spaces.
+- Flaps (orange, copilot only): deploy in order; each needs a specific value pair; moves the orange marker.
+- Radio (orange, copilot has 2): any value; removes one airplane at that many spaces ahead.
+- Concentration (any): any value; grants a Coffee token (used to ±1 a die).
+
 Strategy priorities (highest to lowest):
-1. Engine (right, values 4-6) — essential every round for speed
-2. Axis (copilot) — prevents tilt crash
-3. Gear (right, copilot, value ≥3) — needed before landing round
-4. Flaps — sequential, fill when possible
-5. Radio — any value, fill if you have no better use
-6. Concentration — use only when you have no valid slot for a die
+1. Axis — avoid a spin; help level the plane.
+2. Engines — control speed so you advance the right number of spaces (mind traffic ahead).
+3. Flaps — deploy in order when you have the right value.
+4. Radio — clear airplanes in your path.
+5. Concentration — bank a Coffee token when a die has no better use.
 
 After deciding, send a short in-character chat message (1-2 sentences, aviation tone, do NOT reveal your dice values).`;
 
@@ -132,10 +138,12 @@ Deno.serve(async (req: Request) => {
       if (allRolls && allRolls.length >= 2) {
         const newRemaining: Record<string, number[]> = {};
         for (const r of allRolls) newRemaining[r.player_role] = r.remaining;
+        const firstPlayer: Role = state.round % 2 === 1 ? 'pilot' : 'copilot';
         const updatedState: GameState = {
           ...state,
           phase: 'PLACING',
-          turn: 'pilot',
+          firstPlayer,
+          turn: firstPlayer,
           remaining: newRemaining as Record<Role, number[]>,
         };
         await supabase
@@ -172,13 +180,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (validPlacements.length === 0) {
-    // Emergency: all dice unplaceable — put first die in concentration slot as last resort
-    const concentrationSlot = `concentration_${aiRole}`;
-    if (state.concentrationTokens[aiRole] > 0 && !state.placed.some((p) => p.slotId === concentrationSlot)) {
-      validPlacements.push({ slotId: concentrationSlot, dieValue: aiDice[0], group: 'concentration' });
-    } else {
-      return json({ ok: false, error: 'No valid placements available for AI' });
-    }
+    return json({ ok: false, error: 'No valid placements available for AI' });
   }
 
   // ── Call Claude to select placement ────────────────────────────────────────
@@ -274,28 +276,39 @@ Use the place_die tool to select ONE placement, then send a short in-character m
     };
   }
 
-  // ── Execute placement ───────────────────────────────────────────────────────
-  const newState = applyPlacement(
+  // ── Execute placement (resolves immediately) ────────────────────────────────
+  const { state: newState, events } = applyPlacement(
     state,
     { role: aiRole, slotId: chosenPlacement.slotId, dieValue: chosenPlacement.dieValue },
     cfg,
   );
 
-  // Persist placement record
+  // Persist placement record (placements are public)
   await supabase.from('placements').insert({
     game_id: gameId,
     round: state.round,
     player_role: aiRole,
     slot_id: chosenPlacement.slotId,
     die_value: chosenPlacement.dieValue,
-    revealed: false,
+    revealed: true,
   });
 
   // Update game state
   await supabase
     .from('games')
-    .update({ state: newState, current_phase: newState.phase })
+    .update({
+      state: newState,
+      status: newState.status === 'active' ? 'active' : newState.status,
+      current_round: newState.round,
+      current_phase: newState.phase,
+    })
     .eq('id', gameId);
+
+  if (events.length > 0) {
+    await supabase.from('game_events').insert(
+      events.map((e) => ({ game_id: gameId, event_type: e.type, payload: e.payload })),
+    );
+  }
 
   // Send chat message (do not reveal die values)
   const safeMessage = chosenPlacement.chatMessage.replace(/\b[1-6]\b/g, '?');

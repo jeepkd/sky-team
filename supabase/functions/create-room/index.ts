@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { handleCors, json } from '../_shared/cors.ts';
 import { DEFAULT_CONFIG } from '../_shared/game/config.ts';
+import { createInitialState } from '../_shared/game/state.ts';
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -8,30 +9,6 @@ function generateCode(): string {
   const bytes = new Uint8Array(4);
   crypto.getRandomValues(bytes);
   return Array.from(bytes).map((b) => ALPHABET[b % ALPHABET.length]).join('');
-}
-
-function initialGameState(cfg: typeof DEFAULT_CONFIG) {
-  return {
-    round: 1,
-    phase: 'LOBBY',
-    turn: 'pilot',
-    approachPos: 0,
-    altitude: cfg.rules.speedBands.length,
-    speed: 3,
-    axisTilt: 0,
-    flapsLevel: 0,
-    gearDeployed: [false, false],
-    brakeForce: 0,
-    traffic: cfg.airport.trafficSlots,
-    placed: [],
-    remaining: { pilot: [], copilot: [] },
-    concentrationTokens: {
-      pilot: cfg.rules.startingConcentration,
-      copilot: cfg.rules.startingConcentration,
-    },
-    coffeeUsed: { pilot: false, copilot: false },
-    status: 'active',
-  };
 }
 
 Deno.serve(async (req: Request) => {
@@ -50,7 +27,7 @@ Deno.serve(async (req: Request) => {
   );
 
   const cfg = DEFAULT_CONFIG;
-  const state = initialGameState(cfg);
+  const state = createInitialState(cfg);
 
   let roomCode = '';
   let roomId = '';

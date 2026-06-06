@@ -1,147 +1,209 @@
 import type { GameConfig } from './config';
-import type { GameEvent, GameState, PlacedDie } from './types';
+import type { GameEvent, GameState, PlacedDie, Role } from './types';
 
 function findPlaced(placed: PlacedDie[], slotId: string): number | undefined {
   return placed.find((p) => p.slotId === slotId)?.value;
 }
 
-export function checkEndConditions(
-  state: GameState,
-  cfg: GameConfig,
-): 'victory' | 'crashed' | 'failed' | null {
-  // Already ended
-  if (state.status !== 'active') return state.status === 'victory' ? 'victory' :
-    state.status === 'crashed' ? 'crashed' : 'failed';
-
-  const limit = cfg.rules.axisTiltLimitPerRound[state.round - 1] ?? 2;
-  if (Math.abs(state.axisTilt) > limit) return 'crashed';
-
-  // Speed out of corridor
-  const band = cfg.rules.speedBands.find((b) => b.altitude === state.altitude);
-  if (band) {
-    if (state.speed < band.minSpeed || state.speed > band.maxSpeed) return 'crashed';
-  }
-
-  // Brakes over max during landing
-  if (state.approachPos >= cfg.rules.approachTrackLength - 1 && state.brakeForce > cfg.rules.brakeMaxForce) {
-    return 'crashed';
-  }
-
-  // Traffic collision: plane is on a position that still has a traffic token
-  if (state.traffic.includes(state.approachPos)) return 'crashed';
-
-  // Victory: completed all rounds successfully (checked after final round resolve)
-  if (state.approachPos >= cfg.rules.approachTrackLength && state.round >= cfg.rules.approachTrackLength) {
-    const bothGear = state.gearDeployed.every(Boolean);
-    const fullFlaps = state.flapsLevel >= cfg.rules.flapsRequirements.length;
-    if (bothGear && fullFlaps) return 'victory';
-    return 'failed';
-  }
-
-  return null;
+/** Engine sum → spaces advanced, given the current aerodynamics markers. */
+export function engineAdvance(sum: number, aeroBlue: number, aeroOrange: number): 0 | 1 | 2 {
+  if (sum <= aeroBlue) return 0;
+  if (sum <= aeroOrange) return 1;
+  return 2;
 }
 
-export function resolveRound(
+function isFinalRound(state: GameState, cfg: GameConfig): boolean {
+  return state.round >= cfg.rules.totalRounds;
+}
+
+/**
+ * Resolve the immediate effect of a single die that was just placed (the real game
+ * resolves each die as it lands). Returns the updated state and any events. May set
+ * status to 'crashed' (spin, collision, overshoot).
+ */
+export function resolvePlacement(
   state: GameState,
+  placed: PlacedDie,
   cfg: GameConfig,
 ): { state: GameState; events: GameEvent[] } {
   const events: GameEvent[] = [];
-  let s: GameState = { ...state, phase: 'RESOLVING' };
+  let s = state;
+  const group = slotGroup(placed.slotId);
 
-  // 1. Axis
-  const pilotAxis = findPlaced(s.placed, 'axis_pilot');
-  const copilotAxis = findPlaced(s.placed, 'axis_copilot');
-  if (pilotAxis !== undefined && copilotAxis !== undefined) {
-    s = { ...s, axisTilt: pilotAxis - copilotAxis };
-    events.push({ type: 'axis_resolved', payload: { tilt: s.axisTilt } });
-  }
+  switch (group) {
+    case 'axis': {
+      const pilot = findPlaced(s.placed, 'axis_pilot');
+      const copilot = findPlaced(s.placed, 'axis_copilot');
+      if (pilot !== undefined && copilot !== undefined) {
+        const tilt = s.axisTilt + (pilot - copilot);
+        s = { ...s, axisTilt: tilt };
+        events.push({ type: 'axis_resolved', payload: { tilt } });
+        if (Math.abs(tilt) >= cfg.rules.axisSpinLimit) {
+          s = { ...s, status: 'crashed', phase: 'ENDED' };
+          events.push({ type: 'game_ended', payload: { result: 'crashed', reason: 'spin' } });
+        }
+      }
+      break;
+    }
 
-  // 2. Engines → speed (left engine + right engine combined)
-  const leftEngine = findPlaced(s.placed, 'engine_left');
-  const rightEngine = findPlaced(s.placed, 'engine_right');
-  if (leftEngine !== undefined && rightEngine !== undefined) {
-    s = { ...s, speed: leftEngine + rightEngine };
-    events.push({ type: 'engines_resolved', payload: { speed: s.speed } });
-  }
+    case 'engine': {
+      const pilot = findPlaced(s.placed, 'engine_pilot');
+      const copilot = findPlaced(s.placed, 'engine_copilot');
+      if (pilot !== undefined && copilot !== undefined) {
+        const sum = pilot + copilot;
+        s = { ...s, speed: sum };
+        if (isFinalRound(s, cfg)) {
+          // Landing round: no advance; speed is compared with brakes at game end.
+          s = { ...s, lastAdvance: 0 };
+          events.push({ type: 'engines_resolved', payload: { speed: sum, advance: 0, final: true } });
+        } else {
+          const adv = engineAdvance(sum, s.aeroBlue, s.aeroOrange);
+          s = { ...s, lastAdvance: adv };
+          events.push({ type: 'engines_resolved', payload: { speed: sum, advance: adv } });
+          if (adv > 0) {
+            const airport = cfg.airport.approachTrackLength;
+            if (s.traffic.includes(s.approachPos)) {
+              s = { ...s, status: 'crashed', phase: 'ENDED' };
+              events.push({ type: 'game_ended', payload: { result: 'crashed', reason: 'collision', position: s.approachPos } });
+            } else if (s.approachPos + adv > airport) {
+              s = { ...s, status: 'crashed', phase: 'ENDED' };
+              events.push({ type: 'game_ended', payload: { result: 'crashed', reason: 'overshoot' } });
+            } else {
+              s = { ...s, approachPos: s.approachPos + adv };
+              events.push({ type: 'approach_advanced', payload: { position: s.approachPos, advance: adv } });
+            }
+          }
+        }
+      }
+      break;
+    }
 
-  // 3. Radio → clear traffic tokens (pilot: 1 slot, copilot: 2 slots)
-  // Each radio die removes one traffic token at (approachPos + dieValue).
-  for (const radioSlotId of ['radio_pilot', 'radio_copilot_1', 'radio_copilot_2']) {
-    const radioVal = findPlaced(s.placed, radioSlotId);
-    if (radioVal !== undefined) {
-      const clearedPos = s.approachPos + radioVal;
-      const idx = s.traffic.indexOf(clearedPos);
+    case 'radio': {
+      // Remove one Airplane token at (currentPos + value − 1); value 1 = current position.
+      const target = s.approachPos + (placed.value - 1);
+      const idx = s.traffic.indexOf(target);
       if (idx !== -1) {
-        const newTraffic = [...s.traffic];
-        newTraffic.splice(idx, 1);
-        events.push({ type: 'traffic_cleared', payload: { position: clearedPos, slot: radioSlotId } });
-        s = { ...s, traffic: newTraffic };
+        const traffic = [...s.traffic];
+        traffic.splice(idx, 1);
+        s = { ...s, traffic };
+        events.push({ type: 'traffic_cleared', payload: { position: target } });
       }
+      break;
+    }
+
+    case 'flaps': {
+      // Flaps are placed in order; deploying advances the flaps level and orange marker.
+      const level = Math.max(s.flapsLevel, flapIndex(placed.slotId) + 1);
+      s = { ...s, flapsLevel: level, aeroOrange: s.aeroOrange + 1 };
+      events.push({ type: 'flaps_deployed', payload: { level, aeroOrange: s.aeroOrange } });
+      break;
+    }
+
+    case 'gear': {
+      const i = gearIndex(placed.slotId);
+      const gearDeployed = [...s.gearDeployed];
+      gearDeployed[i] = true;
+      s = { ...s, gearDeployed, aeroBlue: s.aeroBlue + 1 };
+      events.push({ type: 'gear_deployed', payload: { index: i, aeroBlue: s.aeroBlue } });
+      break;
+    }
+
+    case 'brakes': {
+      const level = Math.max(s.brakeLevel, brakeIndex(placed.slotId) + 1);
+      s = { ...s, brakeLevel: level };
+      events.push({ type: 'brakes_deployed', payload: { level } });
+      break;
+    }
+
+    case 'concentration': {
+      const coffee = Math.min(cfg.rules.coffeeMax, s.coffee + 1);
+      s = { ...s, coffee };
+      events.push({ type: 'coffee_gained', payload: { coffee } });
+      break;
     }
   }
 
-  // 4. Flaps
-  for (let i = 0; i < cfg.rules.flapsRequirements.length; i++) {
-    const slotId = `flaps_${i + 1}`;
-    const val = findPlaced(s.placed, slotId);
-    if (val !== undefined && val >= cfg.rules.flapsRequirements[i]) {
-      if (s.flapsLevel < i + 1) {
-        s = { ...s, flapsLevel: i + 1 };
-        events.push({ type: 'flaps_deployed', payload: { level: s.flapsLevel } });
-      }
-    }
+  return { state: s, events };
+}
+
+function slotGroup(slotId: string): string {
+  if (slotId.startsWith('axis')) return 'axis';
+  if (slotId.startsWith('engine')) return 'engine';
+  if (slotId.startsWith('radio')) return 'radio';
+  if (slotId.startsWith('flaps')) return 'flaps';
+  if (slotId.startsWith('gear')) return 'gear';
+  if (slotId.startsWith('brakes')) return 'brakes';
+  if (slotId.startsWith('concentration')) return 'concentration';
+  return 'unknown';
+}
+
+function flapIndex(slotId: string): number { return Number(slotId.split('_')[1]) - 1; }
+function gearIndex(slotId: string): number { return Number(slotId.split('_')[1]) - 1; }
+function brakeIndex(slotId: string): number { return Number(slotId.split('_')[1]) - 1; }
+
+/**
+ * Brake-marker threshold for the current brake level: final speed must be strictly less.
+ */
+export function brakeThreshold(state: GameState, cfg: GameConfig): number {
+  return cfg.rules.brakeThresholds[Math.min(state.brakeLevel, cfg.rules.brakeThresholds.length - 1)];
+}
+
+/**
+ * Evaluate the end-of-game victory/failure conditions (called after the final round).
+ */
+export function checkVictory(state: GameState, cfg: GameConfig): 'victory' | 'failed' {
+  const atAirport = state.approachPos >= cfg.airport.approachTrackLength;
+  const noTraffic = state.traffic.length === 0;
+  const allGear = state.gearDeployed.every(Boolean);
+  const allFlaps = state.flapsLevel >= cfg.rules.flaps.length;
+  const level = state.axisTilt === 0;
+  const speedOk = state.speed < brakeThreshold(state, cfg);
+  return atAirport && noTraffic && allGear && allFlaps && level && speedOk ? 'victory' : 'failed';
+}
+
+/**
+ * Run the end-of-round transition once all 8 dice are placed: enforce mandatory
+ * spaces, advance the round, take back dice, and check for game end.
+ */
+export function endOfRound(state: GameState, cfg: GameConfig): { state: GameState; events: GameEvent[] } {
+  const events: GameEvent[] = [];
+  let s = state;
+
+  // Mandatory: 1 die of each colour on Axis and on Engines.
+  const mandatory = ['axis_pilot', 'axis_copilot', 'engine_pilot', 'engine_copilot'];
+  const missing = mandatory.filter((id) => !s.placed.some((p) => p.slotId === id));
+  if (missing.length > 0) {
+    s = { ...s, status: 'crashed', phase: 'ENDED' };
+    events.push({ type: 'game_ended', payload: { result: 'crashed', reason: 'mandatory', missing } });
+    return { state: s, events };
   }
 
-  // 5. Landing gear
-  const gearLeft = findPlaced(s.placed, 'gear_left');
-  const gearRight = findPlaced(s.placed, 'gear_right');
-  const newGear = [...s.gearDeployed];
-  if (gearLeft !== undefined && gearLeft >= cfg.rules.gearMinValue) {
-    newGear[0] = true;
-    events.push({ type: 'gear_deployed', payload: { side: 'left' } });
-  }
-  if (gearRight !== undefined && gearRight >= cfg.rules.gearMinValue) {
-    newGear[1] = true;
-    events.push({ type: 'gear_deployed', payload: { side: 'right' } });
-  }
-  s = { ...s, gearDeployed: newGear };
-
-  // 6. Brakes (landing round)
-  const brake1 = findPlaced(s.placed, 'brakes_1');
-  const brake2 = findPlaced(s.placed, 'brakes_2');
-  const brakeSum = (brake1 ?? 0) + (brake2 ?? 0);
-  if (brakeSum > 0) {
-    s = { ...s, brakeForce: s.brakeForce + brakeSum };
-    events.push({ type: 'brakes_applied', payload: { force: brakeSum } });
+  // Final round just completed → evaluate landing.
+  if (isFinalRound(s, cfg)) {
+    const result = checkVictory(s, cfg);
+    s = { ...s, status: result, phase: 'ENDED' };
+    events.push({ type: 'game_ended', payload: { result } });
+    return { state: s, events };
   }
 
-  // 7. Concentration tokens applied during placement; no extra resolution step needed.
+  // Reached the airport but it isn't the final round yet → holding pattern (continue).
+  // Advance the round / altitude and take back dice for the next round.
+  const nextRound = s.round + 1;
+  const firstPlayer: Role = nextRound % 2 === 1 ? 'pilot' : 'copilot';
+  const rerollGain = cfg.rules.rerollRounds.includes(nextRound) ? 1 : 0;
 
-  // Advance approach position based on speed
-  const newPos = s.approachPos + Math.max(1, s.speed);
-  s = { ...s, approachPos: newPos };
-  events.push({ type: 'approach_advanced', payload: { position: newPos, speed: s.speed } });
-
-  // Check end conditions
-  const end = checkEndConditions(s, cfg);
-  if (end) {
-    s = { ...s, status: end, phase: 'ENDED' };
-    events.push({ type: 'game_ended', payload: { result: end } });
-  } else {
-    // Advance to next round
-    s = {
-      ...s,
-      round: s.round + 1,
-      phase: 'PLACING',
-      turn: 'pilot',
-      placed: [],
-      remaining: {
-        pilot: Array.from({ length: cfg.rules.dicePerPlayer }, () => 0),
-        copilot: Array.from({ length: cfg.rules.dicePerPlayer }, () => 0),
-      },
-    };
-    events.push({ type: 'round_started', payload: { round: s.round } });
-  }
+  s = {
+    ...s,
+    round: nextRound,
+    phase: 'PLACING',
+    firstPlayer,
+    turn: firstPlayer,
+    placed: [],
+    remaining: { pilot: [], copilot: [] },
+    reroll: Math.min(cfg.rules.rerollTokens, s.reroll + rerollGain),
+    lastAdvance: 0,
+  };
+  events.push({ type: 'round_started', payload: { round: nextRound, firstPlayer } });
 
   return { state: s, events };
 }

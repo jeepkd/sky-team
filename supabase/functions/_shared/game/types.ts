@@ -19,25 +19,56 @@ export interface GameState {
   round: number;
   phase: 'LOBBY' | 'PLACING' | 'REVEALING' | 'RESOLVING' | 'ENDED';
   turn: Role;
+  /** Who places first this round (alternates; pilot in round 1). */
+  firstPlayer: Role;
+
+  /** Plane position on the approach track (1-indexed); airport = approachTrackLength. */
   approachPos: number;
-  altitude: number;
-  speed: number;
+
+  /** Cumulative signed axis tilt. Positive = toward pilot, negative = toward copilot. */
   axisTilt: number;
+
+  /** Aerodynamics markers on the engine-sum scale. sum<=aeroBlue→0, <=aeroOrange→1, else→2. */
+  aeroBlue: number;
+  aeroOrange: number;
+
+  /** Last resolved engine sum and advance (for display). */
+  speed: number;
+  lastAdvance: number;
+
+  /** Flaps deployed so far (0..4), always in order. */
   flapsLevel: number;
+  /** Landing gear switches (length 3). */
   gearDeployed: boolean[];
-  brakeForce: number;
+  /** Brakes deployed so far (0..3), always in order [2,4,6]. */
+  brakeLevel: number;
+
+  /** Approach-track positions occupied by Airplane tokens (a multiset). */
   traffic: number[];
+
   placed: PlacedDie[];
   remaining: Record<Role, number[]>;
-  concentrationTokens: Record<Role, number>;
-  coffeeUsed: Record<Role, boolean>;
+
+  /** Shared Coffee tokens (gained from Concentration, spent to ±1 a die). */
+  coffee: number;
+  /** Shared Reroll tokens available to spend. */
+  reroll: number;
+  /** A partner who has been granted a one-time free reroll after a token was spent. */
+  pendingReroll: Role | null;
+
   status: 'active' | 'victory' | 'crashed' | 'failed';
 }
 
 export interface PlaceAction {
   role: Role;
   slotId: string;
+  /** The value placed on the board (after any Coffee adjustment). */
   dieValue: number;
+  /**
+   * The original die taken from the player's hand. If it differs from dieValue,
+   * the difference is paid with Coffee tokens. Defaults to dieValue (no Coffee).
+   */
+  originalDie?: number;
 }
 
 export interface GameEvent {

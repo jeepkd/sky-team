@@ -1,24 +1,53 @@
+// Exact Sky Team base-game values (YUL Montréal-Trudeau) transcribed from the
+// official Scorpion Masqué rulebook. Values printed only on physical components
+// (the YUL approach-track traffic layout and the exact axis marks-to-X) are not
+// in the rules text and are marked TODO_RULEBOOK with playable placeholders.
+
+/** A space that accepts a die showing either of two values (e.g. the "3/4" space). */
+export type ValuePair = [number, number];
+
 export interface RulesConfig {
   dicePerPlayer: number;
-  /** Absolute max axis tilt (|pilot - copilot|) per round; index 0 = round 1. */
-  axisTiltLimitPerRound: number[];
-  /** Speed must be within [minSpeed, maxSpeed] at the given altitude level. */
-  speedBands: Array<{ altitude: number; minSpeed: number; maxSpeed: number }>;
-  /** Minimum die value to occupy each flap position; index 0 = first flap. */
-  flapsRequirements: number[];
-  /** Minimum die value to deploy a landing gear slot. */
-  gearMinValue: number;
-  /** Sum of all brake dice must not exceed this value to avoid crashing. */
-  brakeMaxForce: number;
-  /** Number of positions on the approach track (rounds before landing). */
-  approachTrackLength: number;
-  /** Concentration tokens each player starts with. */
-  startingConcentration: number;
+  totalRounds: number;
+
+  /** Engine-sum boundaries. sum <= aeroBlueStart → 0 spaces; <= aeroOrangeStart → 1; else 2. */
+  aeroBlueStart: number;
+  aeroOrangeStart: number;
+
+  /** Flaps: deployed in order, top to bottom; each space accepts one of its two values. */
+  flaps: ValuePair[];
+  /** Landing gear (pilot): order-free; each space accepts one of its two values. */
+  gear: ValuePair[];
+  /** Brakes (pilot): deployed in order; each space requires an exact value. */
+  brakes: number[];
+  /** Final-round landing: speed must be < brakeThresholds[brakeLevel]. Index 0 = none deployed. */
+  brakeThresholds: number[];
+
+  radioPilotSlots: number;
+  radioCopilotSlots: number;
+
+  concentrationSlots: number;
+  coffeeMax: number;
+
+  rerollTokens: number;
+  /** Rounds (1-indexed) whose altitude space grants a reroll token at round start. */
+  rerollRounds: number[];
+
+  /**
+   * Axis goes into a spin (lose) when |tilt| >= axisSpinLimit.
+   * TODO_RULEBOOK: exact marks-to-X is printed on the physical Axis disc.
+   */
+  axisSpinLimit: number;
 }
 
 export interface AirportConfig {
   name: string;
-  /** Approach track positions (1-indexed) that have a traffic token at game start. */
+  /** Number of spaces from the plane's start to the airport. */
+  approachTrackLength: number;
+  /**
+   * Approach-track positions (1-indexed) holding an Airplane token at setup.
+   * TODO_RULEBOOK: the real YUL layout is printed on the approach-track component.
+   */
   trafficSlots: number[];
 }
 
@@ -27,37 +56,38 @@ export interface GameConfig {
   airport: AirportConfig;
 }
 
-// TODO_RULEBOOK: all numeric values below need user verification against the physical rulebook.
-// These are best-estimate placeholders to keep the engine runnable; run P2.0 verify to confirm.
 export const DEFAULT_CONFIG: GameConfig = {
   rules: {
     dicePerPlayer: 4,
-    // Tilt limit (absolute value of pilot_die - copilot_die) relaxes early, tightens near runway.
-    // 7 rounds total for base Zürich airport. TODO_RULEBOOK: confirm exact limits per round.
-    axisTiltLimitPerRound: [5, 5, 4, 4, 3, 3, 2],
-    // Altitude/speed corridors. The plane must stay within band for its current altitude.
-    // TODO_RULEBOOK: confirm altitude levels and min/max speed values.
-    speedBands: [
-      { altitude: 5, minSpeed: 2, maxSpeed: 5 },
-      { altitude: 4, minSpeed: 2, maxSpeed: 5 },
-      { altitude: 3, minSpeed: 2, maxSpeed: 4 },
-      { altitude: 2, minSpeed: 1, maxSpeed: 4 },
-      { altitude: 1, minSpeed: 1, maxSpeed: 3 },
-    ],
-    // 4 flap positions, each requiring at least this die value. TODO_RULEBOOK.
-    flapsRequirements: [2, 3, 4, 5],
-    // Minimum die value to lock a landing gear position. TODO_RULEBOOK.
-    gearMinValue: 3,
-    // Brake dice sum must not exceed this or the plane runs off the runway. TODO_RULEBOOK.
-    brakeMaxForce: 9,
-    // Number of approach track rounds before landing phase. TODO_RULEBOOK.
-    approachTrackLength: 7,
-    // Concentration tokens per player at game start. TODO_RULEBOOK.
-    startingConcentration: 3,
+    totalRounds: 7,
+
+    // Blue marker between 4 and 5, orange between 8 and 9.
+    aeroBlueStart: 4,
+    aeroOrangeStart: 8,
+
+    // Flaps deployed in order 1/2 → 2/3 → 3/4 → 4/5 (orange marker ends just past 12).
+    flaps: [[1, 2], [2, 3], [3, 4], [4, 5]],
+    // Landing gear spaces 1/2, 3/4, 5/6 (blue marker ends between 7 and 8).
+    gear: [[1, 2], [3, 4], [5, 6]],
+    // Brakes deployed in order: 2, then 4, then 6.
+    brakes: [2, 4, 6],
+    // Red brake marker thresholds by number deployed (0..3): left-of-2, 2/3, 4/5, 6/7.
+    brakeThresholds: [2, 3, 5, 7],
+
+    radioPilotSlots: 1,
+    radioCopilotSlots: 2,
+
+    concentrationSlots: 3,
+    coffeeMax: 3,
+
+    rerollTokens: 2,
+    rerollRounds: [1, 4], // TODO_RULEBOOK: exact altitude spaces with reroll icons.
+
+    axisSpinLimit: 5, // TODO_RULEBOOK: confirm marks-to-X on the physical Axis disc.
   },
   airport: {
-    name: 'Zürich (Base)',
-    // Approach track positions with traffic tokens. TODO_RULEBOOK: confirm positions.
-    trafficSlots: [3, 5],
+    name: 'YUL Montréal-Trudeau',
+    approachTrackLength: 7, // TODO_RULEBOOK
+    trafficSlots: [3, 4, 6], // TODO_RULEBOOK: real YUL traffic layout.
   },
 };

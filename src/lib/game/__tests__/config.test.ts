@@ -4,50 +4,41 @@ import { DEFAULT_CONFIG } from '../config';
 describe('DEFAULT_CONFIG — shape & rulebook values', () => {
   const { rules, airport } = DEFAULT_CONFIG;
 
-  it('dicePerPlayer is 4', () => {
+  it('dicePerPlayer is 4 and 7 rounds', () => {
     expect(rules.dicePerPlayer).toBe(4);
+    expect(rules.totalRounds).toBe(7);
   });
 
-  it('axisTiltLimitPerRound is non-empty and all values >= 0', () => {
-    expect(rules.axisTiltLimitPerRound.length).toBeGreaterThan(0);
-    rules.axisTiltLimitPerRound.forEach((v) => expect(v).toBeGreaterThanOrEqual(0));
+  it('aerodynamics markers start at 4 and 8', () => {
+    expect(rules.aeroBlueStart).toBe(4);
+    expect(rules.aeroOrangeStart).toBe(8);
   });
 
-  it('speedBands is non-empty', () => {
-    expect(rules.speedBands.length).toBeGreaterThan(0);
+  it('has 4 flaps (1/2, 2/3, 3/4, 4/5)', () => {
+    expect(rules.flaps).toEqual([[1, 2], [2, 3], [3, 4], [4, 5]]);
   });
 
-  it('each speedBand has minSpeed <= maxSpeed', () => {
-    rules.speedBands.forEach(({ minSpeed, maxSpeed }) => {
-      expect(minSpeed).toBeLessThanOrEqual(maxSpeed);
-    });
+  it('has 3 landing-gear spaces (1/2, 3/4, 5/6)', () => {
+    expect(rules.gear).toEqual([[1, 2], [3, 4], [5, 6]]);
   });
 
-  it('flapsRequirements is non-empty and ascending', () => {
-    expect(rules.flapsRequirements.length).toBeGreaterThan(0);
-    for (let i = 1; i < rules.flapsRequirements.length; i++) {
-      expect(rules.flapsRequirements[i]).toBeGreaterThanOrEqual(rules.flapsRequirements[i - 1]);
-    }
+  it('brakes are 2, 4, 6 with ascending thresholds', () => {
+    expect(rules.brakes).toEqual([2, 4, 6]);
+    expect(rules.brakeThresholds).toEqual([2, 3, 5, 7]);
   });
 
-  it('gearMinValue is between 1 and 6', () => {
-    expect(rules.gearMinValue).toBeGreaterThanOrEqual(1);
-    expect(rules.gearMinValue).toBeLessThanOrEqual(6);
+  it('radio: pilot 1, copilot 2', () => {
+    expect(rules.radioPilotSlots).toBe(1);
+    expect(rules.radioCopilotSlots).toBe(2);
   });
 
-  it('brakeMaxForce is positive', () => {
-    expect(rules.brakeMaxForce).toBeGreaterThan(0);
+  it('3 concentration slots, coffee cap 3', () => {
+    expect(rules.concentrationSlots).toBe(3);
+    expect(rules.coffeeMax).toBe(3);
   });
 
-  it('approachTrackLength is positive', () => {
-    expect(rules.approachTrackLength).toBeGreaterThan(0);
-  });
-
-  it('startingConcentration is positive', () => {
-    expect(rules.startingConcentration).toBeGreaterThan(0);
-  });
-
-  it('airport has a name', () => {
+  it('airport has a name and a positive track length', () => {
     expect(airport.name.length).toBeGreaterThan(0);
+    expect(airport.approachTrackLength).toBeGreaterThan(0);
   });
 });

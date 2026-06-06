@@ -11,14 +11,14 @@ Deno.serve(async (req: Request) => {
   const clientId = req.headers.get('x-client-id');
   if (!clientId) return json({ error: 'x-client-id header required' }, 400);
 
-  let body: { gameId?: string; slotId?: string; dieValue?: number };
+  let body: { gameId?: string; slotId?: string; dieValue?: number; originalDie?: number };
   try {
     body = await req.json();
   } catch {
     return json({ error: 'Invalid JSON body' }, 400);
   }
 
-  const { gameId, slotId, dieValue } = body;
+  const { gameId, slotId, dieValue, originalDie } = body;
   if (!gameId || !slotId || dieValue === undefined) {
     return json({ error: 'gameId, slotId, and dieValue are required' }, 400);
   }
@@ -49,48 +49,48 @@ Deno.serve(async (req: Request) => {
 
   const state = game.state as GameState;
   const cfg = game.config as GameConfig;
+  const roundAtPlacement = state.round;
 
-  const action = { role, slotId, dieValue };
+  const action = { role, slotId, dieValue, originalDie };
   const validation = validatePlacement(state, action, cfg);
   if (!validation.ok) return json({ error: validation.reason }, 400);
 
-  const nextState = applyPlacement(state, action, cfg);
+  const { state: nextState, events } = applyPlacement(state, action, cfg);
 
-  // Count existing placements this round for sequence number
+  // Record the placement for history (placements are public in this game).
   const { count } = await supabase
     .from('placements')
     .select('id', { count: 'exact', head: true })
     .eq('game_id', gameId)
-    .eq('round', state.round);
+    .eq('round', roundAtPlacement);
 
-  const sequence = (count ?? 0) + 1;
-
-  const { error: placementErr } = await supabase.from('placements').insert({
+  await supabase.from('placements').insert({
     game_id: gameId,
-    round: state.round,
+    round: roundAtPlacement,
     player_role: role,
     slot_id: slotId,
     die_value: dieValue,
-    sequence,
-    revealed: false,
+    sequence: (count ?? 0) + 1,
+    revealed: true,
   });
 
-  if (placementErr) return json({ error: placementErr.message }, 500);
-
-  // Update game state
   const { error: updateErr } = await supabase
     .from('games')
-    .update({ state: nextState, current_phase: nextState.phase })
+    .update({
+      state: nextState,
+      status: nextState.status === 'active' ? 'active' : nextState.status,
+      current_round: nextState.round,
+      current_phase: nextState.phase,
+    })
     .eq('id', gameId);
 
   if (updateErr) return json({ error: updateErr.message }, 500);
 
-  // Emit game event (value masked — set to null for Phase 2; Phase 4 will enforce this)
-  await supabase.from('game_events').insert({
-    game_id: gameId,
-    event_type: 'die_placed',
-    payload: { role, slotId, value: null, sequence },
-  });
+  if (events.length > 0) {
+    await supabase.from('game_events').insert(
+      events.map((e) => ({ game_id: gameId, event_type: e.type, payload: e.payload })),
+    );
+  }
 
-  return json({ ok: true, phase: nextState.phase });
+  return json({ ok: true, phase: nextState.phase, status: nextState.status });
 });

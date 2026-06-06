@@ -13,14 +13,13 @@ function slotOccupied(slotId: string, state: GameState): boolean {
 export function buildSlots(cfg: GameConfig): SlotDef[] {
   const slots: SlotDef[] = [];
 
-  // --- Axis ---
+  // --- Axis (mandatory): pilot + copilot, any value ---
   slots.push({
     id: 'axis_pilot',
     group: 'axis',
     owner: 'pilot',
     validate(_die, state): ValidResult {
-      if (slotOccupied('axis_pilot', state)) return fail('Axis pilot slot already filled');
-      return ok();
+      return slotOccupied('axis_pilot', state) ? fail('Axis (pilot) already filled') : ok();
     },
   });
   slots.push({
@@ -28,130 +27,116 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
     group: 'axis',
     owner: 'copilot',
     validate(_die, state): ValidResult {
-      if (slotOccupied('axis_copilot', state)) return fail('Axis copilot slot already filled');
-      return ok();
+      return slotOccupied('axis_copilot', state) ? fail('Axis (co-pilot) already filled') : ok();
     },
   });
 
-  // --- Engines ---
-  // Left engine: pilot places, accepts 1–3. Right engine: copilot places, accepts 4–6.
+  // --- Engines (mandatory): pilot + copilot, ANY value ---
   slots.push({
-    id: 'engine_left',
+    id: 'engine_pilot',
     group: 'engine',
-    owner: 'pilot',
-    validate(die, state): ValidResult {
-      if (slotOccupied('engine_left', state)) return fail('Left engine already filled');
-      if (die < 1 || die > 3) return fail('Left engine requires a value of 1–3');
-      return ok();
-    },
-  });
-  slots.push({
-    id: 'engine_right',
-    group: 'engine',
-    owner: 'copilot',
-    validate(die, state): ValidResult {
-      if (slotOccupied('engine_right', state)) return fail('Right engine already filled');
-      if (die < 4 || die > 6) return fail('Right engine requires a value of 4–6');
-      return ok();
-    },
-  });
-
-  // --- Radio ---
-  // Pilot: 1 slot. Copilot: 2 slots.
-  // Die value indicates which approach track position (relative to current) to clear.
-  slots.push({
-    id: 'radio_pilot',
-    group: 'radio',
     owner: 'pilot',
     validate(_die, state): ValidResult {
-      if (slotOccupied('radio_pilot', state)) return fail('Pilot radio slot already filled');
-      return ok();
+      return slotOccupied('engine_pilot', state) ? fail('Engine (pilot) already filled') : ok();
     },
   });
-  for (let i = 1; i <= 2; i++) {
-    const idx = i;
+  slots.push({
+    id: 'engine_copilot',
+    group: 'engine',
+    owner: 'copilot',
+    validate(_die, state): ValidResult {
+      return slotOccupied('engine_copilot', state) ? fail('Engine (co-pilot) already filled') : ok();
+    },
+  });
+
+  // --- Radio: pilot 1 slot, copilot N slots, any value ---
+  for (let i = 1; i <= cfg.rules.radioPilotSlots; i++) {
+    const id = cfg.rules.radioPilotSlots === 1 ? 'radio_pilot' : `radio_pilot_${i}`;
     slots.push({
-      id: `radio_copilot_${i}`,
+      id,
+      group: 'radio',
+      owner: 'pilot',
+      validate(_die, state): ValidResult {
+        return slotOccupied(id, state) ? fail('Radio slot already filled') : ok();
+      },
+    });
+  }
+  for (let i = 1; i <= cfg.rules.radioCopilotSlots; i++) {
+    const id = `radio_copilot_${i}`;
+    slots.push({
+      id,
       group: 'radio',
       owner: 'copilot',
       validate(_die, state): ValidResult {
-        if (slotOccupied(`radio_copilot_${idx}`, state)) return fail(`Copilot radio slot ${idx} already filled`);
-        return ok();
+        return slotOccupied(id, state) ? fail('Radio slot already filled') : ok();
       },
     });
   }
 
-  // --- Flaps (4 positions, sequential, copilot only) ---
-  for (let i = 0; i < cfg.rules.flapsRequirements.length; i++) {
-    const minVal = cfg.rules.flapsRequirements[i];
-    const flap = i;
+  // --- Flaps (copilot only): ordered, each space accepts one of two values ---
+  cfg.rules.flaps.forEach(([a, b], i) => {
+    const id = `flaps_${i + 1}`;
     slots.push({
-      id: `flaps_${i + 1}`,
+      id,
       group: 'flaps',
       owner: 'copilot',
       validate(die, state): ValidResult {
-        if (slotOccupied(`flaps_${flap + 1}`, state)) return fail(`Flap ${flap + 1} already filled`);
-        if (flap > 0 && state.flapsLevel < flap) return fail(`Must deploy flap ${flap} before flap ${flap + 1}`);
-        if (die < minVal) return fail(`Flap ${flap + 1} requires at least ${minVal}`);
+        if (slotOccupied(id, state)) return fail(`Flap ${i + 1} already deployed`);
+        // Must be deployed in order; the previous flap counts whether deployed in a
+        // past round (flapsLevel) or already placed earlier this round.
+        if (i > 0 && state.flapsLevel < i && !slotOccupied(`flaps_${i}`, state)) {
+          return fail(`Deploy flap ${i} before flap ${i + 1}`);
+        }
+        if (die !== a && die !== b) return fail(`Flap ${i + 1} requires a ${a} or ${b}`);
         return ok();
       },
     });
-  }
-
-  // --- Landing Gear (pilot left, copilot right) ---
-  const gearMin = cfg.rules.gearMinValue;
-  slots.push({
-    id: 'gear_left',
-    group: 'gear',
-    owner: 'pilot',
-    validate(die, state): ValidResult {
-      if (slotOccupied('gear_left', state)) return fail('Left gear already deployed');
-      if (die < gearMin) return fail(`Landing gear requires at least ${gearMin}`);
-      return ok();
-    },
-  });
-  slots.push({
-    id: 'gear_right',
-    group: 'gear',
-    owner: 'copilot',
-    validate(die, state): ValidResult {
-      if (slotOccupied('gear_right', state)) return fail('Right gear already deployed');
-      if (die < gearMin) return fail(`Landing gear requires at least ${gearMin}`);
-      return ok();
-    },
   });
 
-  // --- Brakes (pilot only, landing round only) ---
-  for (let i = 1; i <= 2; i++) {
-    const brake = i;
+  // --- Landing gear (pilot only): order-free, each space accepts one of two values ---
+  cfg.rules.gear.forEach(([a, b], i) => {
+    const id = `gear_${i + 1}`;
     slots.push({
-      id: `brakes_${i}`,
+      id,
+      group: 'gear',
+      owner: 'pilot',
+      validate(die, state): ValidResult {
+        if (slotOccupied(id, state)) return fail(`Landing gear ${i + 1} already deployed`);
+        if (die !== a && die !== b) return fail(`This gear requires a ${a} or ${b}`);
+        return ok();
+      },
+    });
+  });
+
+  // --- Brakes (pilot only): ordered, exact values, landing approach ---
+  cfg.rules.brakes.forEach((value, i) => {
+    const id = `brakes_${i + 1}`;
+    slots.push({
+      id,
       group: 'brakes',
       owner: 'pilot',
-      validate(_die, state, c): ValidResult {
-        if (slotOccupied(`brakes_${brake}`, state)) return fail(`Brake slot ${brake} already filled`);
-        if (state.approachPos < c.rules.approachTrackLength - 1) {
-          return fail('Brakes can only be used during the landing round');
+      validate(die, state): ValidResult {
+        if (slotOccupied(id, state)) return fail(`Brake ${value} already deployed`);
+        // Brakes deployed in order; previous may be from a past round or this round.
+        if (i > 0 && state.brakeLevel < i && !slotOccupied(`brakes_${i}`, state)) {
+          return fail(`Deploy the ${cfg.rules.brakes[i - 1]} brake first`);
         }
+        if (die !== value) return fail(`This brake requires a ${value}`);
         return ok();
       },
     });
-  }
+  });
 
-  // --- Concentration (3 slots, any player; costs the placing player a token) ---
-  for (let i = 1; i <= 3; i++) {
-    const idx = i;
+  // --- Concentration (any player, any value); placing grants a Coffee token ---
+  for (let i = 1; i <= cfg.rules.concentrationSlots; i++) {
+    const id = `concentration_${i}`;
     slots.push({
-      id: `concentration_${i}`,
+      id,
       group: 'concentration',
       owner: 'any',
-      validate(_die, state, _cfg, placingRole): ValidResult {
-        if (slotOccupied(`concentration_${idx}`, state)) {
-          return fail('Concentration slot already filled');
-        }
-        if (placingRole && state.concentrationTokens[placingRole] <= 0) {
-          return fail(`${placingRole} has no concentration tokens left`);
-        }
+      validate(_die, state): ValidResult {
+        if (slotOccupied(id, state)) return fail('Concentration slot already filled');
+        if (state.coffee >= cfg.rules.coffeeMax) return fail('Coffee tokens already at maximum');
         return ok();
       },
     });

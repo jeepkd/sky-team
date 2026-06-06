@@ -17,17 +17,17 @@ interface GameEvent {
 }
 
 const EVENT_LABELS: Record<string, (p: Record<string, unknown>) => string> = {
-  axis_resolved: (p) => `Axis settled at ${(p.tilt as number) > 0 ? '+' : ''}${p.tilt}`,
-  engines_resolved: (p) => `Engine output — speed ${p.speed}`,
-  traffic_cleared: (p) => `Radio cleared traffic at position ${p.position}`,
-  flaps_deployed: (p) => `Flaps extended to level ${p.flaps_level ?? p.level}`,
-  gear_deployed: (p) => `${String(p.side).charAt(0).toUpperCase() + String(p.side).slice(1)} gear deployed`,
-  brakes_applied: (p) => `Brakes applied — force ${p.force}`,
-  approach_advanced: (p) => `Approach advanced to position ${p.position} (speed ${p.speed})`,
+  axis_resolved: (p) => `Axis now at ${(p.tilt as number) > 0 ? '+' : ''}${p.tilt}`,
+  engines_resolved: (p) => `Engines — speed ${p.speed}${p.final ? ' (landing)' : `, advance ${p.advance}`}`,
+  traffic_cleared: (p) => `Radio cleared an airplane at position ${p.position}`,
+  flaps_deployed: (p) => `Flaps extended to level ${p.level}`,
+  gear_deployed: (p) => `Landing gear ${(p.index as number) + 1} deployed`,
+  brakes_deployed: (p) => `Brakes deployed to level ${p.level}`,
+  coffee_gained: (p) => `Coffee prepared (${p.coffee} ready)`,
+  reroll: (p) => `${p.role} rerolled ${p.count} dice`,
+  approach_advanced: (p) => `Advanced ${p.advance} to position ${p.position}`,
   round_started: (p) => `Round ${p.round} begins`,
-  round_revealed: (p) => `Round ${p.round} revealed`,
-  die_placed: (p) => `${p.role} placed a die in ${p.slotId}`,
-  game_ended: (p) => `Game ended — ${p.result}`,
+  game_ended: (p) => `Game ended — ${p.result}${p.reason ? ` (${p.reason})` : ''}`,
 };
 
 const STATUS_CONFIG = {

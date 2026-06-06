@@ -90,10 +90,14 @@ Deno.serve(async (req: Request) => {
       newRemaining[r.player_role] = r.remaining;
     }
 
+    // Turn order alternates each round (pilot first in round 1).
+    const firstPlayer: Role = round % 2 === 1 ? 'pilot' : 'copilot';
+
     const updatedState: GameState = {
       ...state,
       phase: 'PLACING',
-      turn: 'pilot',
+      firstPlayer,
+      turn: firstPlayer,
       remaining: newRemaining as Record<Role, number[]>,
     };
 
