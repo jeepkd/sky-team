@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, purgeChannel } from '@/lib/supabase';
 import type { GameState, Role } from '@/lib/game/types';
 
 // Replace opponent dice values with zeros (preserves count for the face-down token UI)
@@ -35,9 +35,8 @@ export function useGameState(gameId: string | null, myRole: Role | null = null) 
 
     loadState();
 
-    // Purge stale channel before creating (StrictMode dedup workaround)
     const topic = `game-state:${gameId}`;
-    supabase.channel(topic).unsubscribe();
+    purgeChannel(topic);
 
     const channel = supabase
       .channel(topic)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, purgeChannel } from '@/lib/supabase';
 
 export interface ChatMessage {
   id: string;
@@ -27,9 +27,8 @@ export function useChat(gameId: string | null) {
         }
       });
 
-    // Realtime subscription
     const topic = `messages:${gameId}`;
-    supabase.removeChannel(supabase.channel(topic));
+    purgeChannel(topic);
     const ch = supabase
       .channel(topic)
       .on(

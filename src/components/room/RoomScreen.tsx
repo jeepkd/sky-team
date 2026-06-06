@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase, getClientId } from '@/lib/supabase';
+import { supabase, getClientId, purgeChannel } from '@/lib/supabase';
 import { fetchPlayers } from '@/lib/rooms';
 import { usePresence } from '@/hooks/usePresence';
 import { rollDice, addAiPlayer } from '@/lib/api';
@@ -32,17 +32,7 @@ export function RoomScreen({ session, onLeave }: Props) {
 
   // Keep seats in sync via realtime
   useEffect(() => {
-    // Purge stale channel (same StrictMode guard as usePresence)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rt = (supabase as any).realtime;
-    if (rt?.channels) {
-      const topic = `realtime:room-players:${gameId}`;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rt.channels = rt.channels.filter((c: any) => {
-        if (c.topic === topic) { c.unsubscribe().catch(() => {}); return false; }
-        return true;
-      });
-    }
+    purgeChannel(`room-players:${gameId}`);
 
     const channel = supabase
       .channel(`room-players:${gameId}`)

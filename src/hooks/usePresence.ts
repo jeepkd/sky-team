@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, purgeChannel } from '@/lib/supabase';
 import type { Role } from '@/types';
 
 async function markConnected(gameId: string, clientId: string, connected: boolean) {
@@ -32,24 +32,6 @@ function deriveOnline(state: Record<string, PresencePayload[]>): OnlineState {
   return result;
 }
 
-// supabase.channel() deduplicates by topic. In React StrictMode the async
-// removeChannel cleanup hasn't finished before the second effect fires, so the
-// stale subscribed channel is returned and .on('presence') throws. We work
-// around this by synchronously purging matching channels from the internal list
-// and firing unsubscribe in the background for server-side cleanup.
-function purgeChannel(topic: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const realtime = (supabase as any).realtime;
-  if (!realtime?.channels) return;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  realtime.channels = realtime.channels.filter((c: any) => {
-    if (c.topic === topic) {
-      c.unsubscribe().catch(() => {});
-      return false;
-    }
-    return true;
-  });
-}
 
 export function usePresence(
   gameId: string,
