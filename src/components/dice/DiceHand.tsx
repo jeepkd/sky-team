@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { DieToken } from './DieToken';
 
 interface Props {
@@ -7,7 +8,7 @@ interface Props {
   isMyTurn: boolean;
 }
 
-export function DiceHand({ dice, selectedDie, onSelect, isMyTurn }: Props) {
+export const DiceHand = memo(function DiceHand({ dice, selectedDie, onSelect, isMyTurn }: Props) {
   if (dice.length === 0) {
     return (
       <div className="text-xs font-mono text-gray-600 uppercase tracking-widest">
@@ -38,4 +39,4 @@ export function DiceHand({ dice, selectedDie, onSelect, isMyTurn }: Props) {
       )}
     </div>
   );
-}
+});

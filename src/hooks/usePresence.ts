@@ -2,6 +2,17 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Role } from '@/types';
 
+async function markConnected(gameId: string, clientId: string, connected: boolean) {
+  await supabase
+    .from('players')
+    .update(connected
+      ? { connected: true, disconnected_at: null }
+      : { connected: false, disconnected_at: new Date().toISOString() }
+    )
+    .eq('game_id', gameId)
+    .eq('client_id', clientId);
+}
+
 interface PresencePayload {
   role: Role;
   clientId: string;
@@ -66,10 +77,12 @@ export function usePresence(
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           await channel.track({ role, clientId } satisfies PresencePayload);
+          await markConnected(gameId, clientId, true);
         }
       });
 
     return () => {
+      markConnected(gameId, clientId, false).catch(() => {});
       supabase.removeChannel(channel);
     };
   }, [gameId, role, clientId]);

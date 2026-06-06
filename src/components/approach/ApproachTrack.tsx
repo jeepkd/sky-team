@@ -1,10 +1,12 @@
+import { memo } from 'react';
+
 interface Props {
   length: number;
   position: number;
   traffic: number[];
 }
 
-export function ApproachTrack({ length, position, traffic }: Props) {
+export const ApproachTrack = memo(function ApproachTrack({ length, position, traffic }: Props) {
   const cells = Array.from({ length }, (_, i) => i + 1);
   // position 0 = pre-approach; clamp display within cells
   const clampedPos = Math.min(Math.max(position, 1), length);
@@ -76,4 +78,4 @@ export function ApproachTrack({ length, position, traffic }: Props) {
       </div>
     </div>
   );
-}
+});

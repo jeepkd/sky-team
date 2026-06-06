@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { GameConfig } from '@/lib/game/config';
 import type { GameState, Role, SlotDef } from '@/lib/game/types';
 import { validatePlacement } from '@/lib/game/validate';
@@ -112,7 +113,7 @@ function SlotCell({
   );
 }
 
-export function SlotGroup({
+export const SlotGroup = memo(function SlotGroup({
   label, slots, gameState, myRole, selectedDie, onSlotClick, cfg,
   concentrationMode = false, revealStep = 0,
 }: Props) {
@@ -140,4 +141,4 @@ export function SlotGroup({
       </div>
     </div>
   );
-}
+});

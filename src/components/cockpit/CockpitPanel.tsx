@@ -5,6 +5,7 @@ import { DEFAULT_CONFIG } from '@/lib/game/config';
 import { buildSlots } from '@/lib/game/slots';
 import { placeDie, rollDice, revealRound, resolveRound, useConcentration, triggerAiTick, sendMessage } from '@/lib/api';
 import { useChat } from '@/hooks/useChat';
+import { sounds } from '@/lib/sounds';
 import { ApproachTrack } from '@/components/approach/ApproachTrack';
 import { DiceHand } from '@/components/dice/DiceHand';
 import { DieToken } from '@/components/dice/DieToken';
@@ -51,6 +52,9 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
   const hasConcentration = gameState.concentrationTokens[role] > 0;
   const concentrationFilled = gameState.placed.some((p) => p.slotId === `concentration_${role}`);
 
+  const tiltLimit = cfg.rules.axisTiltLimitPerRound[gameState.round - 1] ?? 2;
+  const axisDanger = Math.abs(gameState.axisTilt) >= tiltLimit;
+
   // Auto-roll at start of each round
   useEffect(() => {
     if (gameState.phase === 'LOBBY' || gameState.phase === 'ENDED') return;
@@ -64,6 +68,18 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
         .finally(() => setAiThinking(false));
     }
   }, [gameId, gameState.round]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Axis danger warning
+  useEffect(() => {
+    if (axisDanger && gameState.phase === 'PLACING') sounds.warning();
+  }, [axisDanger, gameState.phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Game-end sound cues
+  useEffect(() => {
+    if (gameState.phase !== 'ENDED') return;
+    if (gameState.status === 'victory') sounds.victory();
+    else sounds.crash();
+  }, [gameState.phase, gameState.status]);
 
   // Trigger AI turn when it's the AI's turn during PLACING
   useEffect(() => {
@@ -87,6 +103,7 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
       if (revealTimerRef.current) clearInterval(revealTimerRef.current);
       return;
     }
+    sounds.reveal();
     setRevealStep(0);
     const total = gameState.placed.length;
     revealTimerRef.current = setInterval(() => {
@@ -131,6 +148,7 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
       if (selectedDie === null) return;
       try {
         await placeDie(gameId, slotId, selectedDie);
+        sounds.diePlaced();
         setSelectedDie(null);
       } catch (e) {
         addToast(e instanceof Error ? e.message : 'Placement failed', 'error');
@@ -140,6 +158,7 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
   );
 
   const handleDieSelect = useCallback((v: number) => {
+    sounds.dieSelected();
     setSelectedDie((prev) => (prev === v ? null : v));
     setConcentrationMode(false);
   }, []);
@@ -165,13 +184,10 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
     concentration: slots.filter((s) => s.group === 'concentration'),
   };
 
-  const tiltLimit = cfg.rules.axisTiltLimitPerRound[gameState.round - 1] ?? 2;
-  const axisDanger = Math.abs(gameState.axisTilt) >= tiltLimit;
-
   return (
-    <div className="min-h-screen bg-cockpit-bg flex flex-col font-mono select-none">
+    <div className="min-h-svh bg-cockpit-bg flex flex-col font-mono select-none">
       {/* ── Header ── */}
-      <header className="border-b border-cockpit-border bg-cockpit-surface/60 px-4 py-2 flex items-center gap-4 text-xs">
+      <header className="border-b border-cockpit-border bg-cockpit-surface/60 px-3 py-2 flex items-center gap-2 sm:gap-4 text-xs flex-wrap">
         <span className="text-cockpit-accent font-bold tracking-widest">✈ SKY TEAM</span>
         <span className="text-gray-600">|</span>
         <span className="uppercase tracking-widest text-gray-500">
@@ -243,9 +259,9 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
       )}
 
       {/* ── Instrument panel ── */}
-      <main className="flex-1 overflow-auto p-3 space-y-3">
+      <main className="flex-1 overflow-auto p-2 sm:p-3 space-y-2 sm:space-y-3">
         {/* Row 1 */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <SlotGroup
             label="Axis"
             slots={slotGroups.axis}
@@ -282,7 +298,7 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
         </div>
 
         {/* Row 2 */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <SlotGroup
             label="Flaps"
             slots={slotGroups.flaps}
@@ -308,7 +324,7 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
         </div>
 
         {/* Row 3 */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <SlotGroup
             label={`Brakes${gameState.approachPos < cfg.rules.approachTrackLength - 1 ? ' (landing only)' : ''}`}
             slots={slotGroups.brakes}
