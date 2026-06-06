@@ -8,9 +8,7 @@ interface Props {
 
 export const ApproachTrack = memo(function ApproachTrack({ length, position, traffic }: Props) {
   const cells = Array.from({ length }, (_, i) => i + 1);
-  // position 0 = pre-approach; clamp display within cells
   const clampedPos = Math.min(Math.max(position, 1), length);
-  // percentage offset for the animated plane (0% = cell 1, 100% = cell N)
   const pct = length <= 1 ? 0 : ((clampedPos - 1) / (length - 1)) * 100;
 
   return (
@@ -19,25 +17,37 @@ export const ApproachTrack = memo(function ApproachTrack({ length, position, tra
         APP
       </span>
 
-      {/* Track cells */}
       <div className="relative flex items-center gap-0.5">
         {cells.map((pos) => {
-          const hasTraffic = traffic.includes(pos);
+          const tokenCount = traffic.filter((t) => t === pos).length;
           const isActive = pos === clampedPos;
+          const hasTraffic = tokenCount > 0;
+
           return (
             <div
               key={pos}
               className={[
-                'flex items-center justify-center w-8 h-8 rounded border font-mono text-xs',
-                isActive
-                  ? 'border-amber-400/60 bg-amber-500/10 text-amber-400/60'
-                  : hasTraffic
-                    ? 'border-red-700 bg-red-900/30 text-red-400'
-                    : 'border-cockpit-border bg-cockpit-surface/50 text-gray-600',
+                'relative flex flex-col items-center justify-center w-8 h-8 rounded border font-mono text-xs',
+                isActive && hasTraffic
+                  ? 'border-red-500 bg-red-900/40 text-amber-400'
+                  : isActive
+                    ? 'border-amber-400/60 bg-amber-500/10 text-amber-400/60'
+                    : hasTraffic
+                      ? 'border-red-700 bg-red-900/30 text-red-400'
+                      : 'border-cockpit-border bg-cockpit-surface/50 text-gray-600',
               ].join(' ')}
-              title={`Position ${pos}${hasTraffic ? ' — TRAFFIC' : ''}`}
+              title={`Position ${pos}${hasTraffic ? ` — ${tokenCount} TRAFFIC` : ''}`}
             >
-              {hasTraffic && !isActive ? '⚡' : pos}
+              {hasTraffic ? (
+                <span className="leading-none">✈</span>
+              ) : (
+                <span>{pos}</span>
+              )}
+              {tokenCount > 1 && (
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-600 text-white text-[8px] flex items-center justify-center font-bold leading-none">
+                  {tokenCount}
+                </span>
+              )}
             </div>
           );
         })}

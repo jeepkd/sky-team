@@ -55,14 +55,19 @@ export function resolveRound(
     events.push({ type: 'engines_resolved', payload: { speed: s.speed } });
   }
 
-  const radio = findPlaced(s.placed, 'radio');
-  if (radio !== undefined) {
-    const clearedPos = s.approachPos + radio;
-    const newTraffic = s.traffic.filter((t) => t !== clearedPos);
-    if (newTraffic.length < s.traffic.length) {
-      events.push({ type: 'traffic_cleared', payload: { position: clearedPos } });
+  // Radio: pilot 1 slot, copilot 2 slots — each removes one traffic token at (approachPos + dieValue)
+  for (const radioSlotId of ['radio_pilot', 'radio_copilot_1', 'radio_copilot_2']) {
+    const radioVal = findPlaced(s.placed, radioSlotId);
+    if (radioVal !== undefined) {
+      const clearedPos = s.approachPos + radioVal;
+      const idx = s.traffic.indexOf(clearedPos);
+      if (idx !== -1) {
+        const newTraffic = [...s.traffic];
+        newTraffic.splice(idx, 1);
+        events.push({ type: 'traffic_cleared', payload: { position: clearedPos, slot: radioSlotId } });
+        s = { ...s, traffic: newTraffic };
+      }
     }
-    s = { ...s, traffic: newTraffic };
   }
 
   for (let i = 0; i < cfg.rules.flapsRequirements.length; i++) {

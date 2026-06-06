@@ -33,7 +33,7 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
     },
   });
 
-  // --- Engines (one left, one right) ---
+  // --- Engines ---
   // Left engine: pilot places, accepts 1–3. Right engine: copilot places, accepts 4–6.
   slots.push({
     id: 'engine_left',
@@ -57,27 +57,40 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
   });
 
   // --- Radio ---
+  // Pilot: 1 slot. Copilot: 2 slots.
+  // Die value indicates which approach track position (relative to current) to clear.
   slots.push({
-    id: 'radio',
+    id: 'radio_pilot',
     group: 'radio',
-    owner: 'any',
+    owner: 'pilot',
     validate(_die, state): ValidResult {
-      if (slotOccupied('radio', state)) return fail('Radio slot already filled');
+      if (slotOccupied('radio_pilot', state)) return fail('Pilot radio slot already filled');
       return ok();
     },
   });
+  for (let i = 1; i <= 2; i++) {
+    const idx = i;
+    slots.push({
+      id: `radio_copilot_${i}`,
+      group: 'radio',
+      owner: 'copilot',
+      validate(_die, state): ValidResult {
+        if (slotOccupied(`radio_copilot_${idx}`, state)) return fail(`Copilot radio slot ${idx} already filled`);
+        return ok();
+      },
+    });
+  }
 
-  // --- Flaps (4 positions, sequential deployment) ---
+  // --- Flaps (4 positions, sequential, copilot only) ---
   for (let i = 0; i < cfg.rules.flapsRequirements.length; i++) {
     const minVal = cfg.rules.flapsRequirements[i];
-    const flap = i; // captured
+    const flap = i;
     slots.push({
       id: `flaps_${i + 1}`,
       group: 'flaps',
-      owner: 'any',
+      owner: 'copilot',
       validate(die, state): ValidResult {
         if (slotOccupied(`flaps_${flap + 1}`, state)) return fail(`Flap ${flap + 1} already filled`);
-        // Flaps must be deployed in order
         if (flap > 0 && state.flapsLevel < flap) return fail(`Must deploy flap ${flap} before flap ${flap + 1}`);
         if (die < minVal) return fail(`Flap ${flap + 1} requires at least ${minVal}`);
         return ok();
@@ -85,7 +98,7 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
     });
   }
 
-  // --- Landing Gear (2 slots, pilot + copilot) ---
+  // --- Landing Gear (pilot left, copilot right) ---
   const gearMin = cfg.rules.gearMinValue;
   slots.push({
     id: 'gear_left',
@@ -108,16 +121,15 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
     },
   });
 
-  // --- Brakes (2 slots, landing round only, any player) ---
+  // --- Brakes (pilot only, landing round only) ---
   for (let i = 1; i <= 2; i++) {
     const brake = i;
     slots.push({
       id: `brakes_${i}`,
       group: 'brakes',
-      owner: 'any',
+      owner: 'pilot',
       validate(_die, state, c): ValidResult {
         if (slotOccupied(`brakes_${brake}`, state)) return fail(`Brake slot ${brake} already filled`);
-        // Brakes only usable in landing round (final approach position)
         if (state.approachPos < c.rules.approachTrackLength - 1) {
           return fail('Brakes can only be used during the landing round');
         }
@@ -126,18 +138,19 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
     });
   }
 
-  // --- Concentration (1 slot per player) ---
-  for (const role of ['pilot', 'copilot'] as const) {
+  // --- Concentration (3 slots, any player; costs the placing player a token) ---
+  for (let i = 1; i <= 3; i++) {
+    const idx = i;
     slots.push({
-      id: `concentration_${role}`,
+      id: `concentration_${i}`,
       group: 'concentration',
-      owner: role,
-      validate(_die, state): ValidResult {
-        if (slotOccupied(`concentration_${role}`, state)) {
-          return fail(`${role} concentration slot already filled`);
+      owner: 'any',
+      validate(_die, state, _cfg, placingRole): ValidResult {
+        if (slotOccupied(`concentration_${idx}`, state)) {
+          return fail('Concentration slot already filled');
         }
-        if (state.concentrationTokens[role] <= 0) {
-          return fail(`${role} has no concentration tokens left`);
+        if (placingRole && state.concentrationTokens[placingRole] <= 0) {
+          return fail(`${placingRole} has no concentration tokens left`);
         }
         return ok();
       },

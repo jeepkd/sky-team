@@ -29,7 +29,7 @@ export function validatePlacement(
     return { ok: false, reason: `${action.role} cannot place in slot ${action.slotId}` };
   }
 
-  return slot.validate(action.dieValue, state, cfg);
+  return slot.validate(action.dieValue, state, cfg, action.role);
 }
 
 function removeFirst(arr: number[], value: number): number[] {

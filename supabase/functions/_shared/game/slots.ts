@@ -1,5 +1,5 @@
 import type { GameConfig } from './config.ts';
-import type { GameState, SlotDef } from './types.ts';
+import type { GameState, Role, SlotDef } from './types.ts';
 
 type ValidResult = { ok: true } | { ok: false; reason: string };
 
@@ -13,6 +13,7 @@ function slotOccupied(slotId: string, state: GameState): boolean {
 export function buildSlots(cfg: GameConfig): SlotDef[] {
   const slots: SlotDef[] = [];
 
+  // --- Axis ---
   slots.push({
     id: 'axis_pilot',
     group: 'axis',
@@ -32,6 +33,7 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
     },
   });
 
+  // --- Engines ---
   slots.push({
     id: 'engine_left',
     group: 'engine',
@@ -53,23 +55,37 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
     },
   });
 
+  // --- Radio: pilot 1 slot, copilot 2 slots ---
   slots.push({
-    id: 'radio',
+    id: 'radio_pilot',
     group: 'radio',
-    owner: 'any',
+    owner: 'pilot',
     validate(_die, state): ValidResult {
-      if (slotOccupied('radio', state)) return fail('Radio slot already filled');
+      if (slotOccupied('radio_pilot', state)) return fail('Pilot radio slot already filled');
       return ok();
     },
   });
+  for (let i = 1; i <= 2; i++) {
+    const idx = i;
+    slots.push({
+      id: `radio_copilot_${i}`,
+      group: 'radio',
+      owner: 'copilot',
+      validate(_die, state): ValidResult {
+        if (slotOccupied(`radio_copilot_${idx}`, state)) return fail(`Copilot radio slot ${idx} already filled`);
+        return ok();
+      },
+    });
+  }
 
+  // --- Flaps (4 positions, sequential, copilot only) ---
   for (let i = 0; i < cfg.rules.flapsRequirements.length; i++) {
     const minVal = cfg.rules.flapsRequirements[i];
     const flap = i;
     slots.push({
       id: `flaps_${i + 1}`,
       group: 'flaps',
-      owner: 'any',
+      owner: 'copilot',
       validate(die, state): ValidResult {
         if (slotOccupied(`flaps_${flap + 1}`, state)) return fail(`Flap ${flap + 1} already filled`);
         if (flap > 0 && state.flapsLevel < flap) return fail(`Must deploy flap ${flap} before flap ${flap + 1}`);
@@ -79,6 +95,7 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
     });
   }
 
+  // --- Landing Gear (pilot left, copilot right) ---
   const gearMin = cfg.rules.gearMinValue;
   slots.push({
     id: 'gear_left',
@@ -101,12 +118,13 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
     },
   });
 
+  // --- Brakes (pilot only, landing round only) ---
   for (let i = 1; i <= 2; i++) {
     const brake = i;
     slots.push({
       id: `brakes_${i}`,
       group: 'brakes',
-      owner: 'any',
+      owner: 'pilot',
       validate(_die, state, c): ValidResult {
         if (slotOccupied(`brakes_${brake}`, state)) return fail(`Brake slot ${brake} already filled`);
         if (state.approachPos < c.rules.approachTrackLength - 1) {
@@ -117,17 +135,19 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
     });
   }
 
-  for (const role of ['pilot', 'copilot'] as const) {
+  // --- Concentration (3 slots, any player; costs the placing player a token) ---
+  for (let i = 1; i <= 3; i++) {
+    const idx = i;
     slots.push({
-      id: `concentration_${role}`,
+      id: `concentration_${i}`,
       group: 'concentration',
-      owner: role,
-      validate(_die, state): ValidResult {
-        if (slotOccupied(`concentration_${role}`, state)) {
-          return fail(`${role} concentration slot already filled`);
+      owner: 'any',
+      validate(_die, state, _cfg, placingRole): ValidResult {
+        if (slotOccupied(`concentration_${idx}`, state)) {
+          return fail('Concentration slot already filled');
         }
-        if (state.concentrationTokens[role] <= 0) {
-          return fail(`${role} has no concentration tokens left`);
+        if (placingRole && state.concentrationTokens[placingRole] <= 0) {
+          return fail(`${placingRole} has no concentration tokens left`);
         }
         return ok();
       },

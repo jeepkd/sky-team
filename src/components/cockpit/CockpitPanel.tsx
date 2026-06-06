@@ -4,6 +4,7 @@ import type { GameState, Role } from '@/lib/game/types';
 import { DEFAULT_CONFIG } from '@/lib/game/config';
 import { buildSlots } from '@/lib/game/slots';
 import { placeDie, rollDice, revealRound, resolveRound, useConcentration, triggerAiTick, sendMessage } from '@/lib/api';
+import { validatePlacement } from '@/lib/game/validate';
 import { useChat } from '@/hooks/useChat';
 import { sounds } from '@/lib/sounds';
 import { ApproachTrack } from '@/components/approach/ApproachTrack';
@@ -36,7 +37,6 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
   const [concentrationMode, setConcentrationMode] = useState(false);
   const [hiddenInfoDismissed, setHiddenInfoDismissed] = useState(false);
   const [aiThinking, setAiThinking] = useState(false);
-  // P3.1: track number of slots visually revealed during REVEALING phase
   const [revealStep, setRevealStep] = useState(0);
   const messages = useChat(gameId);
   const revealTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -48,9 +48,8 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
   const opponentRole: Role = role === 'pilot' ? 'copilot' : 'pilot';
   const opponentDiceCount = gameState.remaining[opponentRole].length;
 
-  // Concentration state
   const hasConcentration = gameState.concentrationTokens[role] > 0;
-  const concentrationFilled = gameState.placed.some((p) => p.slotId === `concentration_${role}`);
+  const concentrationFilled = gameState.placed.some((p) => p.slotId.startsWith('concentration_'));
 
   const tiltLimit = cfg.rules.axisTiltLimitPerRound[gameState.round - 1] ?? 2;
   const axisDanger = Math.abs(gameState.axisTilt) >= tiltLimit;
@@ -59,44 +58,34 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
   useEffect(() => {
     if (gameState.phase === 'LOBBY' || gameState.phase === 'ENDED') return;
     rollDice(gameId).catch(() => {});
-    // Also trigger AI roll if there's an AI player
     if (hasAiPlayer) {
       setAiThinking(true);
-      triggerAiTick(gameId)
-        .then(() => {})
-        .catch(() => {})
-        .finally(() => setAiThinking(false));
+      triggerAiTick(gameId).catch(() => {}).finally(() => setAiThinking(false));
     }
   }, [gameId, gameState.round]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Axis danger warning
   useEffect(() => {
     if (axisDanger && gameState.phase === 'PLACING') sounds.warning();
   }, [axisDanger, gameState.phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Game-end sound cues
   useEffect(() => {
     if (gameState.phase !== 'ENDED') return;
     if (gameState.status === 'victory') sounds.victory();
     else sounds.crash();
   }, [gameState.phase, gameState.status]);
 
-  // Trigger AI turn when it's the AI's turn during PLACING
   useEffect(() => {
     if (!hasAiPlayer) return;
     if (gameState.phase !== 'PLACING') return;
-    if (gameState.turn === role) return; // it's the human's turn
+    if (gameState.turn === role) return;
     setAiThinking(true);
     const t = setTimeout(() => {
-      triggerAiTick(gameId)
-        .then(() => {})
-        .catch(() => {})
-        .finally(() => setAiThinking(false));
-    }, 600); // small delay so UI can render first
+      triggerAiTick(gameId).catch(() => {}).finally(() => setAiThinking(false));
+    }, 600);
     return () => clearTimeout(t);
   }, [gameId, hasAiPlayer, gameState.phase, gameState.turn, role]);
 
-  // P3.1: sequential slot-reveal animation
+  // Sequential slot-reveal animation
   useEffect(() => {
     if (gameState.phase !== 'REVEALING') {
       setRevealStep(0);
@@ -108,17 +97,14 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
     const total = gameState.placed.length;
     revealTimerRef.current = setInterval(() => {
       setRevealStep((s) => {
-        if (s >= total) {
-          clearInterval(revealTimerRef.current!);
-          return s;
-        }
+        if (s >= total) { clearInterval(revealTimerRef.current!); return s; }
         return s + 1;
       });
     }, 350);
     return () => { if (revealTimerRef.current) clearInterval(revealTimerRef.current); };
   }, [gameState.phase, gameState.placed.length]);
 
-  // Pilot auto-triggers reveal (after animation) then resolve
+  // Pilot auto-triggers reveal then resolve
   useEffect(() => {
     if (role !== 'pilot') return;
     if (gameState.phase === 'REVEALING') {
@@ -134,7 +120,6 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
 
   const handleSlotClick = useCallback(
     async (slotId: string) => {
-      // Concentration take-back mode
       if (concentrationMode) {
         setConcentrationMode(false);
         try {
@@ -173,16 +158,31 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
     sendMessage(gameId, role, text).catch(() => {});
   }, [gameId, role]);
 
-  // Group slots
+  // Slot groups
   const slotGroups = {
     axis: slots.filter((s) => s.group === 'axis'),
-    engine: slots.filter((s) => s.group === 'engine'),
-    radio: slots.filter((s) => s.group === 'radio'),
+    engineLeft: slots.filter((s) => s.id === 'engine_left'),
+    engineRight: slots.filter((s) => s.id === 'engine_right'),
+    radioPilot: slots.filter((s) => s.id === 'radio_pilot'),
+    radioCopilot: slots.filter((s) => s.id.startsWith('radio_copilot')),
     flaps: slots.filter((s) => s.group === 'flaps'),
-    gear: slots.filter((s) => s.group === 'gear'),
+    gearLeft: slots.filter((s) => s.id === 'gear_left'),
+    gearRight: slots.filter((s) => s.id === 'gear_right'),
     brakes: slots.filter((s) => s.group === 'brakes'),
-    concentration: slots.filter((s) => s.group === 'concentration'),
+    concentration: slots.filter((s) => s.group === 'concentration'),  // 3 slots, any player
   };
+
+  const slotProps = {
+    gameState,
+    myRole: role,
+    selectedDie: concentrationMode ? null : selectedDie,
+    onSlotClick: handleSlotClick,
+    cfg,
+    concentrationMode,
+    revealStep,
+  };
+
+  const isLanding = gameState.approachPos >= cfg.rules.approachTrackLength - 1;
 
   return (
     <div className="min-h-svh bg-cockpit-bg flex flex-col font-mono select-none">
@@ -210,10 +210,9 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
           Spd <span className="text-amber-300">{gameState.speed}</span>
         </span>
         <div className="ml-auto flex items-center gap-3">
-          <span className="text-gray-600 uppercase">
-            {role === 'pilot' ? 'PLT' : 'CPL'}
+          <span className={role === 'pilot' ? 'text-blue-500' : 'text-orange-500'}>
+            {role === 'pilot' ? 'PILOT' : 'CO-PILOT'}
           </span>
-          {/* Concentration token display */}
           <span className="text-gray-600 uppercase tracking-widest">
             Conc <span className={gameState.concentrationTokens[role] > 0 ? 'text-amber-400' : 'text-gray-700'}>
               {gameState.concentrationTokens[role]}
@@ -244,7 +243,7 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
         />
       </div>
 
-      {/* P4.4: Hidden-information banner during PLACING */}
+      {/* Hidden-info banner */}
       {gameState.phase === 'PLACING' && !hiddenInfoDismissed && (
         <div className="flex items-center justify-between bg-amber-950/60 border-b border-amber-800/50 px-4 py-1.5 text-[10px] font-mono uppercase tracking-widest text-amber-600">
           <span>⚠ Placing phase — do not reveal your dice values to your partner (honour system)</span>
@@ -252,107 +251,112 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
             onClick={() => setHiddenInfoDismissed(true)}
             className="ml-4 text-amber-700 hover:text-amber-500 leading-none"
             aria-label="Dismiss"
-          >
-            ✕
-          </button>
+          >✕</button>
         </div>
       )}
 
       {/* ── Instrument panel ── */}
       <main className="flex-1 overflow-auto p-2 sm:p-3 space-y-2 sm:space-y-3">
-        {/* Row 1 */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <SlotGroup
-            label="Axis"
-            slots={slotGroups.axis}
-            gameState={gameState}
-            myRole={role}
-            selectedDie={concentrationMode ? null : selectedDie}
-            onSlotClick={handleSlotClick}
-            cfg={cfg}
-            concentrationMode={concentrationMode}
-            revealStep={revealStep}
-          />
-          <SlotGroup
-            label="Engines"
-            slots={slotGroups.engine}
-            gameState={gameState}
-            myRole={role}
-            selectedDie={concentrationMode ? null : selectedDie}
-            onSlotClick={handleSlotClick}
-            cfg={cfg}
-            concentrationMode={concentrationMode}
-            revealStep={revealStep}
-          />
-          <SlotGroup
-            label="Radio"
-            slots={slotGroups.radio}
-            gameState={gameState}
-            myRole={role}
-            selectedDie={concentrationMode ? null : selectedDie}
-            onSlotClick={handleSlotClick}
-            cfg={cfg}
-            concentrationMode={concentrationMode}
-            revealStep={revealStep}
-          />
+
+        {/* ── Axis — full-width center piece ── */}
+        <div className="rounded-lg border border-gray-700/50 bg-cockpit-surface/40 p-3">
+          <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.15em] text-gray-500 text-center">
+            Axis — {axisDanger ? <span className="text-red-400 animate-pulse">⚠ DANGER</span> : 'level'}
+          </div>
+          <div className="flex items-center justify-center gap-8">
+            {slotGroups.axis.map((slot) => {
+              const isPilot = slot.id === 'axis_pilot';
+              const placed = gameState.placed.find((p) => p.slotId === slot.id);
+              const placementIndex = gameState.placed.findIndex((p) => p.slotId === slot.id);
+              const isRevealing = gameState.phase === 'REVEALING';
+              const isRevealed = !isRevealing || placementIndex < revealStep;
+              const isValid =
+                !concentrationMode &&
+                selectedDie !== null &&
+                !placed &&
+                gameState.phase === 'PLACING' &&
+                validatePlacement(gameState, { role, slotId: slot.id, dieValue: selectedDie }, cfg).ok;
+
+              return (
+                <div key={slot.id} className="flex flex-col items-center gap-1">
+                  <span className={['text-[9px] font-mono uppercase tracking-wider', isPilot ? 'text-blue-500/70' : 'text-orange-500/70'].join(' ')}>
+                    {isPilot ? 'PILOT' : 'COPILOT'}
+                  </span>
+                  {placed ? (
+                    <div className={['transition-all duration-300', !isRevealed ? 'opacity-0 scale-75' : 'opacity-100 scale-100'].join(' ')}>
+                      <DieToken value={placed.value} role={placed.role} size="lg" />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={isValid ? () => handleSlotClick(slot.id) : undefined}
+                      disabled={!isValid}
+                      className={[
+                        'w-16 h-16 rounded-full border-2 transition-all duration-150',
+                        isPilot ? 'border-blue-900/40 bg-blue-950/30' : 'border-orange-900/40 bg-orange-950/30',
+                        isValid
+                          ? isPilot
+                            ? 'border-blue-400 bg-blue-500/10 shadow-[0_0_12px_rgba(59,130,246,0.5)] cursor-pointer hover:scale-105'
+                            : 'border-orange-400 bg-orange-500/10 shadow-[0_0_12px_rgba(249,115,22,0.5)] cursor-pointer hover:scale-105'
+                          : selectedDie !== null ? 'opacity-25' : '',
+                      ].join(' ')}
+                      aria-label={`Axis ${isPilot ? 'pilot' : 'copilot'} slot`}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Row 2 */}
+        {/* ── Main panel — Pilot left | Copilot right ── */}
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          <SlotGroup
-            label="Flaps"
-            slots={slotGroups.flaps}
-            gameState={gameState}
-            myRole={role}
-            selectedDie={concentrationMode ? null : selectedDie}
-            onSlotClick={handleSlotClick}
-            cfg={cfg}
-            concentrationMode={concentrationMode}
-            revealStep={revealStep}
-          />
-          <SlotGroup
-            label="Landing Gear"
-            slots={slotGroups.gear}
-            gameState={gameState}
-            myRole={role}
-            selectedDie={concentrationMode ? null : selectedDie}
-            onSlotClick={handleSlotClick}
-            cfg={cfg}
-            concentrationMode={concentrationMode}
-            revealStep={revealStep}
-          />
+
+          {/* Pilot column */}
+          <div className="space-y-2">
+            <div className="text-[9px] font-mono uppercase tracking-widest text-blue-600 px-1">— Pilot —</div>
+            <SlotGroup label="Engine (1–3)" slots={slotGroups.engineLeft} {...slotProps} />
+            <SlotGroup label="Gear Left" slots={slotGroups.gearLeft} {...slotProps} />
+            <SlotGroup label="Radio" slots={slotGroups.radioPilot} {...slotProps} />
+            {isLanding && (
+              <SlotGroup label="Brakes" slots={slotGroups.brakes} {...slotProps} />
+            )}
+            {!isLanding && (
+              <div className="rounded-lg border border-gray-800/40 bg-gray-900/20 p-3 opacity-40">
+                <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-gray-700">Brakes (landing only)</div>
+                <div className="mt-2 flex gap-2">
+                  {slotGroups.brakes.map((s) => (
+                    <div key={s.id} className="w-10 h-10 rounded border-2 border-gray-800/30 bg-gray-900/10" />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Copilot column */}
+          <div className="space-y-2">
+            <div className="text-[9px] font-mono uppercase tracking-widest text-orange-600 px-1">— Co-pilot —</div>
+            <SlotGroup label="Engine (4–6)" slots={slotGroups.engineRight} {...slotProps} />
+            <SlotGroup label="Gear Right" slots={slotGroups.gearRight} {...slotProps} />
+            <SlotGroup label="Radio" slots={slotGroups.radioCopilot} {...slotProps} />
+            <SlotGroup
+              label={`Flaps${gameState.flapsLevel > 0 ? ` (${gameState.flapsLevel}/4)` : ''}`}
+              slots={slotGroups.flaps}
+              {...slotProps}
+            />
+          </div>
         </div>
 
-        {/* Row 3 */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          <SlotGroup
-            label={`Brakes${gameState.approachPos < cfg.rules.approachTrackLength - 1 ? ' (landing only)' : ''}`}
-            slots={slotGroups.brakes}
-            gameState={gameState}
-            myRole={role}
-            selectedDie={concentrationMode ? null : selectedDie}
-            onSlotClick={handleSlotClick}
-            cfg={cfg}
-            concentrationMode={concentrationMode}
-            revealStep={revealStep}
-          />
-          <SlotGroup
-            label={`Concentration (${gameState.concentrationTokens[role]} left)`}
-            slots={slotGroups.concentration}
-            gameState={gameState}
-            myRole={role}
-            selectedDie={concentrationMode ? null : selectedDie}
-            onSlotClick={handleSlotClick}
-            cfg={cfg}
-            concentrationMode={concentrationMode}
-            revealStep={revealStep}
-          />
-        </div>
+        {/* ── Concentration — full width ── */}
+        <SlotGroup
+          label={`Concentration — Pilot: ${gameState.concentrationTokens.pilot} · Co-pilot: ${gameState.concentrationTokens.copilot}`}
+          slots={slotGroups.concentration}
+          {...slotProps}
+          ownerHint="any"
+        />
       </main>
 
       {/* ── Footer / dice tray ── */}
       <footer className="border-t border-cockpit-border bg-cockpit-surface/60 px-4 py-3 space-y-2">
-        {/* Phase overlays */}
         {gameState.phase === 'REVEALING' && (
           <div className="text-center text-xs text-amber-400 uppercase tracking-widest animate-pulse">
             Revealing placements… ({revealStep}/{gameState.placed.length})
@@ -364,22 +368,18 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
           </div>
         )}
 
-        {/* Dice tray */}
         {gameState.phase === 'PLACING' && (
           <>
-            {/* P4.3: Opponent dice — show count + face-down tokens */}
+            {/* Opponent dice face-down */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-gray-600">
-                {opponentRole === 'pilot' ? 'PLT' : 'CPL'}
+              <span className={[
+                'text-[10px] font-mono uppercase tracking-widest',
+                opponentRole === 'pilot' ? 'text-blue-600' : 'text-orange-600',
+              ].join(' ')}>
+                {opponentRole === 'pilot' ? 'Pilot' : 'Co-pilot'}
               </span>
               {Array.from({ length: opponentDiceCount }).map((_, i) => (
-                <div
-                  key={i}
-                  className="w-10 h-10 rounded-lg border-2 border-gray-700 bg-gray-800/60 flex items-center justify-center"
-                  title="Opponent die (hidden)"
-                >
-                  <span className="text-gray-700 text-lg">?</span>
-                </div>
+                <DieToken key={i} value={0} role={opponentRole} faceDown size="lg" />
               ))}
               {opponentDiceCount === 0 && (
                 <span className="text-xs text-gray-700">All placed</span>
@@ -393,9 +393,9 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
                 selectedDie={selectedDie}
                 onSelect={handleDieSelect}
                 isMyTurn={isMyTurn}
+                role={role}
               />
 
-              {/* Concentration take-back button */}
               {isMyTurn && concentrationFilled && hasConcentration && !concentrationMode && (
                 <button
                   onClick={activateConcentration}
@@ -419,7 +419,6 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
               )}
             </div>
 
-            {/* Turn indicator / selection hint */}
             <div className="text-[10px] uppercase tracking-widest text-gray-600 h-3">
               {!isMyTurn && `Waiting for ${opponentRole}…`}
               {isMyTurn && selectedDie && !concentrationMode && 'Click a glowing slot to place'}
@@ -429,14 +428,16 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
           </>
         )}
 
-        {/* Concentration token row - always visible during game */}
+        {/* Concentration token dots */}
         {gameState.phase === 'PLACING' && (
-          <div className="flex items-center gap-3 pt-1 border-t border-cockpit-border/50">
+          <div className="flex items-center gap-4 pt-1 border-t border-cockpit-border/50">
             {(['pilot', 'copilot'] as Role[]).map((r) => (
               <div key={r} className="flex items-center gap-1.5">
-                <span className="text-[9px] text-gray-700 uppercase">{r === 'pilot' ? 'PLT' : 'CPL'}</span>
+                <span className={['text-[9px] uppercase', r === 'pilot' ? 'text-blue-700' : 'text-orange-700'].join(' ')}>
+                  {r === 'pilot' ? 'PLT' : 'CPL'}
+                </span>
                 {Array.from({ length: Math.max(0, gameState.concentrationTokens[r]) }).map((_, i) => (
-                  <div key={i} className="w-2 h-2 rounded-full bg-amber-600/70" title="Concentration token" />
+                  <div key={i} className={['w-2 h-2 rounded-full', r === 'pilot' ? 'bg-blue-600/70' : 'bg-orange-600/70'].join(' ')} />
                 ))}
                 {gameState.concentrationTokens[r] === 0 && (
                   <div className="w-2 h-2 rounded-full bg-gray-800 border border-gray-700" />
@@ -446,9 +447,6 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
           </div>
         )}
       </footer>
-
-      {/* Opponent die as face-down token - shown in slots for P4 */}
-      <div className="hidden"><DieToken value={1} /></div>
 
       <ToastList toasts={toasts} onDismiss={dismiss} />
     </div>

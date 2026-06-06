@@ -6,9 +6,10 @@ interface Props {
   selectedDie: number | null;
   onSelect: (v: number) => void;
   isMyTurn: boolean;
+  role: 'pilot' | 'copilot';
 }
 
-export const DiceHand = memo(function DiceHand({ dice, selectedDie, onSelect, isMyTurn }: Props) {
+export const DiceHand = memo(function DiceHand({ dice, selectedDie, onSelect, isMyTurn, role }: Props) {
   if (dice.length === 0) {
     return (
       <div className="text-xs font-mono text-gray-600 uppercase tracking-widest">
@@ -19,13 +20,17 @@ export const DiceHand = memo(function DiceHand({ dice, selectedDie, onSelect, is
 
   return (
     <div className="flex items-center gap-3">
-      <span className="text-xs font-mono uppercase tracking-widest text-gray-500 mr-1">
-        Your dice
+      <span className={[
+        'text-xs font-mono uppercase tracking-widest mr-1',
+        role === 'pilot' ? 'text-blue-500' : 'text-orange-500',
+      ].join(' ')}>
+        {role === 'pilot' ? 'Pilot' : 'Co-pilot'}
       </span>
       {dice.map((v, i) => (
         <DieToken
           key={i}
           value={v}
+          role={role}
           selected={selectedDie === v && dice.indexOf(v) === i}
           onClick={isMyTurn ? () => onSelect(v) : undefined}
           disabled={!isMyTurn}

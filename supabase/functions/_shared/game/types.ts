@@ -6,7 +6,7 @@ export interface SlotDef {
   id: string;
   group: 'axis' | 'engine' | 'flaps' | 'gear' | 'radio' | 'brakes' | 'concentration';
   owner: Role | 'any';
-  validate(die: number, state: GameState, cfg: GameConfig): { ok: true } | { ok: false; reason: string };
+  validate(die: number, state: GameState, cfg: GameConfig, role?: Role): { ok: true } | { ok: false; reason: string };
 }
 
 export interface PlacedDie {
