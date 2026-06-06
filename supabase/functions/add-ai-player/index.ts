@@ -33,7 +33,6 @@ Deno.serve(async (req: Request) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  // Verify caller is a player in this game
   const { data: caller } = await supabase
     .from('players')
     .select('role')
@@ -43,7 +42,6 @@ Deno.serve(async (req: Request) => {
 
   if (!caller) return json({ error: 'Not a player in this game' }, 403);
 
-  // Find taken roles
   const { data: players } = await supabase
     .from('players')
     .select('role, is_ai')
@@ -51,7 +49,6 @@ Deno.serve(async (req: Request) => {
 
   if (!players) return json({ error: 'Could not load players' }, 500);
 
-  // Check not already full
   if (players.length >= 2) return json({ error: 'Game already has two players' }, 409);
   if (players.some((p) => p.is_ai)) return json({ error: 'AI player already added' }, 409);
 
@@ -59,7 +56,6 @@ Deno.serve(async (req: Request) => {
   const aiRole = ['pilot', 'copilot'].find((r) => !takenRoles.has(r));
   if (!aiRole) return json({ error: 'No available role for AI' }, 409);
 
-  // Synthetic stable UUID for AI (one per game, deterministic-ish)
   const aiClientId = crypto.randomUUID();
 
   const { data: game } = await supabase

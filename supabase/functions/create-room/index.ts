@@ -41,6 +41,9 @@ Deno.serve(async (req: Request) => {
   const clientId = req.headers.get('x-client-id');
   if (!clientId) return json({ error: 'x-client-id header required' }, 400);
 
+  let body: { role?: string } = {};
+  try { body = await req.json(); } catch { /* no body is fine */ }
+
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -89,9 +92,11 @@ Deno.serve(async (req: Request) => {
 
   if (!roomCode) return json({ error: 'Could not generate unique room code' }, 500);
 
+  const chosenRole = body.role === 'copilot' ? 'copilot' : 'pilot';
+
   const { error: playerErr } = await supabase.from('players').insert({
     game_id: gameId,
-    role: 'pilot',
+    role: chosenRole,
     client_id: clientId,
     is_ai: false,
     connected: true,
@@ -99,5 +104,5 @@ Deno.serve(async (req: Request) => {
 
   if (playerErr) return json({ error: playerErr.message }, 500);
 
-  return json({ roomCode, gameId, role: 'pilot' });
+  return json({ roomCode, gameId, role: chosenRole });
 });
