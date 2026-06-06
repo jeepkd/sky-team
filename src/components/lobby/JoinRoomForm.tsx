@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { joinRoom } from '@/lib/rooms';
+import { joinRoom } from '@/lib/api';
 import type { Session } from '@/types';
+import type { Role } from '@/lib/game/types';
 import { Button } from '@/components/ui/Button';
 
 interface Props {
@@ -19,16 +20,10 @@ export function JoinRoomForm({ onSession, initialCode = '' }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const session = await joinRoom(code);
-      onSession(session);
+      const result = await joinRoom(code);
+      onSession({ roomCode: code.toUpperCase().trim(), gameId: result.gameId, role: result.role as Role });
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : typeof err === 'object' && err !== null && 'message' in err
-            ? String((err as { message: unknown }).message)
-            : String(err),
-      );
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }

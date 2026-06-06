@@ -1,4 +1,5 @@
 import { supabase, getClientId } from '@/lib/supabase';
+import type { Role } from '@/types';
 
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_URL + '/functions/v1';
 
@@ -21,11 +22,11 @@ async function callFunction<T>(
   return data as T;
 }
 
-export async function createRoom(): Promise<{ roomCode: string; gameId: string; role: string }> {
+export async function createRoom(): Promise<{ roomCode: string; gameId: string; role: Role }> {
   return callFunction('create-room', {});
 }
 
-export async function joinRoom(code: string): Promise<{ gameId: string; role: string }> {
+export async function joinRoom(code: string): Promise<{ gameId: string; role: Role }> {
   return callFunction('join-room', { code });
 }
 
@@ -47,6 +48,22 @@ export async function revealRound(gameId: string): Promise<{ ok: boolean }> {
 
 export async function resolveRound(gameId: string): Promise<{ ok: boolean; status: string; phase: string }> {
   return callFunction('resolve-round', { gameId });
+}
+
+export async function useConcentration(gameId: string, takenBackSlotId: string): Promise<{ ok: boolean }> {
+  return callFunction('use-concentration', { gameId, takenBackSlotId });
+}
+
+export async function sendMessage(gameId: string, role: string, content: string): Promise<void> {
+  return callFunction('send-message', { gameId, role, content });
+}
+
+export async function triggerAiTick(gameId: string): Promise<{ ok: boolean; action?: string }> {
+  return callFunction('ai-agent-tick', { gameId });
+}
+
+export async function addAiPlayer(gameId: string): Promise<{ ok: boolean; role: string }> {
+  return callFunction('add-ai-player', { gameId });
 }
 
 export { supabase };

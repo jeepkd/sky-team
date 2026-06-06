@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createRoom } from '@/lib/rooms';
+import { createRoom } from '@/lib/api';
 import type { Session } from '@/types';
 import { Button } from '@/components/ui/Button';
 

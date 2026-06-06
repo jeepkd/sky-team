@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase, getClientId } from '@/lib/supabase';
 import { fetchPlayers } from '@/lib/rooms';
 import { usePresence } from '@/hooks/usePresence';
-import { rollDice } from '@/lib/api';
+import { rollDice, addAiPlayer } from '@/lib/api';
 import { ROLES } from '@/types';
 import type { Player, Session } from '@/types';
 import { SeatCard } from './SeatCard';
@@ -56,7 +56,17 @@ export function RoomScreen({ session, onLeave }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [gameId]);
 
-  const bothPresent = ROLES.every((r) => online[r]);
+  const hasAiPlayer = players.some((p) => (p as Player & { is_ai?: boolean }).is_ai);
+  const bothSeated = ROLES.every((r) => players.some((p) => p.role === r));
+  const bothPresent = bothSeated && (hasAiPlayer || ROLES.every((r) => online[r]));
+
+  async function addAi() {
+    try {
+      await addAiPlayer(gameId);
+    } catch (e) {
+      console.error('Failed to add AI:', e);
+    }
+  }
 
   async function startGame() {
     setStarting(true);
@@ -105,6 +115,16 @@ export function RoomScreen({ session, onLeave }: Props) {
             />
           ))}
         </div>
+
+        {!bothSeated && !hasAiPlayer && (
+          <Button
+            variant="secondary"
+            onClick={addAi}
+            className="w-full border-amber-800 text-amber-600 hover:bg-amber-900/20"
+          >
+            Add AI Co-pilot
+          </Button>
+        )}
 
         {bothPresent && (
           <Button
