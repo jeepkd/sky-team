@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sky Team Digital — Architecture Plan</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b22;
+      --border:  #30363d;
+      --accent:  #58a6ff;
+      --accent2: #f78166;
+      --accent3: #3fb950;
+      --accent4: #d2a8ff;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+      --warn:    #e3b341;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 2rem;
+    }
+
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    /* HEADER */
+    header {
+      text-align: center;
+      padding: 3rem 0 2rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 3rem;
+    }
+    header h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, var(--accent), var(--accent4));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header p { color: var(--muted); margin-top: .5rem; font-size: 1.05rem; }
+    .badge {
+      display: inline-block;
+      padding: .2rem .7rem;
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 600;
+      margin: .25rem;
+    }
+    .badge-blue  { background: #1f3a5f; color: var(--accent); }
+    .badge-green { background: #1a3a2a; color: var(--accent3); }
+    .badge-purple{ background: #2d1f5f; color: var(--accent4); }
+    .badge-orange{ background: #3a2a1a; color: #ffa657; }
+
+    /* SECTIONS */
+    section { margin-bottom: 3rem; }
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      border-left: 3px solid var(--accent);
+      padding-left: .75rem;
+      margin-bottom: 1.25rem;
+    }
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent4);
+      margin: 1.5rem 0 .5rem;
+    }
+    h4 {
+      font-size: .95rem;
+      font-weight: 600;
+      color: var(--warn);
+      margin: 1rem 0 .4rem;
+    }
+    p { color: var(--text); margin-bottom: .6rem; }
+
+    /* CARDS */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+    }
+    .card h3 { margin-top: 0; }
+    .card ul { padding-left: 1.25rem; }
+    .card ul li { color: var(--muted); margin-bottom: .25rem; font-size: .9rem; }
+    .card ul li strong { color: var(--text); }
+
+    /* TABLE */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+      margin: 1rem 0;
+    }
+    th {
+      background: #1c2129;
+      color: var(--accent);
+      padding: .6rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: .55rem 1rem;
+      border-bottom: 1px solid #21262d;
+      color: var(--muted);
+      vertical-align: top;
+    }
+    td:first-child { color: var(--text); font-weight: 500; }
+    tr:hover td { background: #1c2129; }
+
+    /* CODE */
+    pre, code {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: .85rem;
+    }
+    code {
+      background: #1c2129;
+      padding: .1rem .4rem;
+      border-radius: 4px;
+      color: var(--accent3);
+    }
+    pre {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.2rem;
+      overflow-x: auto;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* DIAGRAM WRAPPER */
+    .diagram-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+    .diagram-wrap .mermaid { text-align: center; }
+
+    /* PHASE TIMELINE */
+    .timeline { position: relative; padding-left: 2rem; }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: .5rem;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .timeline-item { position: relative; margin-bottom: 1.5rem; }
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -1.65rem;
+      top: .45rem;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .timeline-item.phase2::before { background: var(--accent4); }
+    .timeline-item.phase3::before { background: var(--accent3); }
+    .timeline-item.phase4::before { background: var(--warn); }
+    .phase-label {
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      margin-bottom: .25rem;
+    }
+    .phase1 .phase-label { color: var(--accent); }
+    .phase2 .phase-label { color: var(--accent4); }
+    .phase3 .phase-label { color: var(--accent3); }
+    .phase4 .phase-label { color: var(--warn); }
+
+    /* SKILLS TABLE */
+    .skill-row td:nth-child(2) { color: var(--accent4); }
+    .skill-row td:nth-child(3) { color: var(--accent3); font-size: .82rem; }
+
+    /* MISSING / RISK */
+    .risk { border-left: 3px solid var(--accent2); }
+    .risk h3 { color: var(--accent2); }
+
+    /* ARCH DIAGRAM (SVG-based) */
+    .arch-svg-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+
+    /* TOC */
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .toc h3 { margin-top: 0; color: var(--muted); font-size: .9rem; letter-spacing: .05em; text-transform: uppercase; }
+    .toc ol { padding-left: 1.5rem; }
+    .toc li { margin-bottom: .3rem; }
+    .toc a { color: var(--accent); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* HIGHLIGHT BOX */
+    .highlight-box {
+      background: #1a2a1a;
+      border: 1px solid #2d5a2d;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      color: var(--accent3);
+      font-size: .9rem;
+    }
+    .warn-box {
+      background: #2a1a0d;
+      border: 1px solid #5a3d2d;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      color: var(--warn);
+      font-size: .9rem;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 700px) {
+      body { padding: 1rem; }
+      header h1 { font-size: 1.8rem; }
+      .card-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+<!-- HEADER -->
+<header>
+  <h1>✈ Sky Team Digital</h1>
+  <p>Architecture &amp; Implementation Plan &mdash; v1.0 &mdash; June 2026</p>
+  <div style="margin-top:1rem;">
+    <span class="badge badge-blue">React + TypeScript</span>
+    <span class="badge badge-green">Supabase</span>
+    <span class="badge badge-purple">Claude AI Agent</span>
+    <span class="badge badge-orange">Realtime</span>
+    <span class="badge badge-blue">Base Game (MVP)</span>
+  </div>
+</header>
+
+<!-- TOC -->
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li><a href="#overview">Project Overview &amp; Scope</a></li>
+    <li><a href="#game-rules">Sky Team Rules Reference (Dev Summary)</a></li>
+    <li><a href="#architecture">System Architecture</a></li>
+    <li><a href="#data-model">Database Schema</a></li>
+    <li><a href="#state-machine">Game State Machine</a></li>
+    <li><a href="#realtime">Realtime &amp; Hidden Information Design</a></li>
+    <li><a href="#edge-functions">Supabase Edge Functions</a></li>
+    <li><a href="#llm-agent">LLM Agent Design</a></li>
+    <li><a href="#frontend">Frontend Architecture &amp; Component Tree</a></li>
+    <li><a href="#project-structure">Project Directory Structure</a></li>
+    <li><a href="#skills">Suggested Claude Code Skills</a></li>
+    <li><a href="#phases">Development Phases</a></li>
+    <li><a href="#missing">Missing Components &amp; Risks</a></li>
+  </ol>
+</div>
+
+
+<!-- DECISIONS -->
+<section id="decisions" style="margin-bottom:3rem;">
+  <h2>Confirmed Design Decisions</h2>
+  <p style="color:var(--muted);margin-bottom:1rem;">All decisions locked in from the planning session.</p>
+  <table>
+    <thead><tr><th>Decision</th><th>Choice</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Game scope</td><td>Base game only</td><td>Single airport, no expansions for MVP</td></tr>
+      <tr><td>Matchmaking</td><td>Room code (no accounts)</td><td>Anonymous Supabase sessions</td></tr>
+      <tr><td>Dice authority</td><td>Server-side (Edge Function)</td><td><code>crypto.getRandomValues()</code> — provably fair</td></tr>
+      <tr><td>AI agent</td><td>Core MVP feature</td><td>Claude claude-sonnet-4-6 via Anthropic API</td></tr>
+      <tr><td>Chat during Placement</td><td>Allow free text + warn banner</td><td>Honor system; no LLM filtering</td></tr>
+      <tr><td>Cockpit visual style</td><td>Card-based / modern Tailwind UI</td><td>Fastest to build; responsive-friendly</td></tr>
+      <tr><td>AI persona</td><td>Friendly civilian pilot — warm, conversational</td><td>"Ooh, tricky roll! I'm thinking flaps..."</td></tr>
+      <tr><td>Reconnection</td><td>Rejoin code shown at game start</td><td>8-char personal code (e.g. <code>ALFA-7392</code>)</td></tr>
+      <tr><td>Disconnect timeout</td><td>10 minutes then auto-forfeit</td><td>Supabase pg_cron or Deno cron in edge function</td></tr>
+      <tr><td>Turn timer</td><td>No timer</td><td>Players place at their own pace</td></tr>
+      <tr><td>Quick wins (MVP)</td><td>Shareable invite link, Sound cues, Game summary screen</td><td>Emoji reactions deferred post-MVP</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 1. OVERVIEW -->
+<section id="overview">
+  <h2>1. Project Overview &amp; Scope</h2>
+  <div class="card-grid">
+    <div class="card">
+      <h3>What We're Building</h3>
+      <ul>
+        <li>A real-time browser-based implementation of <strong>Sky Team</strong> (base game)</li>
+        <li>Two players join via a <strong>room code</strong> — no accounts required</li>
+        <li>Either player can be replaced by a <strong>Claude AI agent</strong> (core feature)</li>
+        <li>Server-side dice rolling for fairness</li>
+        <li>Full hidden-information enforcement (die values hidden from opponent until reveal)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Tech Stack</h3>
+      <ul>
+        <li><strong>Frontend:</strong> React 18 + TypeScript + Vite</li>
+        <li><strong>Styling:</strong> Tailwind CSS + Framer Motion</li>
+        <li><strong>Backend:</strong> Supabase (Postgres + Realtime + Edge Functions)</li>
+        <li><strong>Auth:</strong> Supabase Anonymous Auth (no signup required)</li>
+        <li><strong>AI Agent:</strong> Anthropic Claude API (claude-sonnet-4-6)</li>
+        <li><strong>Hosting:</strong> Vercel (frontend) + Supabase (backend)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Core Constraints</h3>
+      <ul>
+        <li>Die values must be <strong>hidden</strong> from opponent during placement</li>
+        <li>Communication rules enforced: players can announce placement <em>location</em>, not value</li>
+        <li>All game logic validated server-side (edge functions)</li>
+        <li>AI agent must respect the same hidden-information constraints as humans</li>
+        <li>Graceful reconnection if a player drops</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- 2. GAME RULES -->
+<section id="game-rules">
+  <h2>2. Sky Team Rules Reference (Dev Summary)</h2>
+  <p style="color:var(--muted)">Key mechanics the codebase must encode. Refer to the official rulebook for edge cases.</p>
+
+  <h3>Flow of a Round</h3>
+  <div class="diagram-wrap">
+    <div class="mermaid">
+flowchart LR
+    A[Roll Phase\nServer rolls 4 dice\nper player — hidden] --> B[Planning Phase\nFree communication\nAllowed]
+    B --> C[Placement Phase\nAlternate placing 1 die\nLocation OK, value FORBIDDEN]
+    C --> D[Revelation\nAll dice visible\nsimultaneously]
+    D --> E[Resolution\nApply module effects\nCheck for failure]
+    E --> F{More rounds?}
+    F -- Yes --> A
+    F -- No --> G[Landing Phase\nBrakes / runway\nFinal checks]
+    </div>
+  </div>
+
+  <h3>Cockpit Modules (Base Game)</h3>
+  <table>
+    <thead><tr><th>Module</th><th>Who Places</th><th>Validation Rule</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td>Axis (Joystick)</td><td>Both (1 each)</td><td>|Pilot - CoPilot| ≤ current turn limit</td><td>Moves plane on approach track by result</td></tr>
+      <tr><td>Engine (L/R)</td><td>Pilot=Left, CoPilot=Right</td><td>Both slots must be filled; sum within range</td><td>Adjusts altitude / speed marker</td></tr>
+      <tr><td>Flaps</td><td>Either (1 total)</td><td>Value must be > last flap placed (ascending 1→4)</td><td>Unlocks landing gear slot in later rounds</td></tr>
+      <tr><td>Landing Gear</td><td>Either (1 total)</td><td>Value ≥ 3; only available after flaps round</td><td>Gear deployed — required for landing</td></tr>
+      <tr><td>Radio (ATC)</td><td>Either (optional)</td><td>Value matches current traffic token</td><td>Clears traffic, avoids collision penalty</td></tr>
+      <tr><td>Concentration</td><td>Either (optional)</td><td>Any value</td><td>Spend to reroll one of your own dice</td></tr>
+      <tr><td>Brakes</td><td>Both (1 each)</td><td>Sum ≤ max brake force allowed</td><td>Slows plane on runway (landing phase only)</td></tr>
+      <tr><td>Coffee ☕</td><td>Either</td><td>One per player per game</td><td>Cancel a bad die result (reroll or remove)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="warn-box">
+    <strong>Critical enforcement point:</strong> During the Placement Phase players MUST NOT reveal die values — only the target module slot. Your frontend must prevent accidental disclosure (e.g., no "hover to see opponent value" until Revelation phase). The server must validate placements without broadcasting values to the wrong client.
+  </div>
+</section>
+
+
+<!-- 3. ARCHITECTURE -->
+<section id="architecture">
+  <h2>3. System Architecture</h2>
+
+  <div class="arch-svg-wrap">
+    <svg viewBox="0 0 960 500" xmlns="http://www.w3.org/2000/svg" style="width:100%;font-family:monospace;font-size:13px;">
+      <!-- Background groups -->
+      <!-- Browser Client 1 -->
+      <rect x="20" y="20" width="200" height="460" rx="10" fill="#1c2129" stroke="#30363d" stroke-width="1.5"/>
+      <text x="120" y="48" text-anchor="middle" fill="#58a6ff" font-weight="bold" font-size="14">Browser Client</text>
+      <text x="120" y="65" text-anchor="middle" fill="#8b949e" font-size="11">(Human Player)</text>
+      <rect x="40" y="80" width="160" height="50" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="120" y="103" text-anchor="middle" fill="#e6edf3" font-size="11">React App</text>
+      <text x="120" y="118" text-anchor="middle" fill="#8b949e" font-size="10">Game UI + State</text>
+      <rect x="40" y="145" width="160" height="40" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="120" y="163" text-anchor="middle" fill="#e6edf3" font-size="11">Supabase Client</text>
+      <text x="120" y="178" text-anchor="middle" fill="#8b949e" font-size="10">Realtime Sub</text>
+      <rect x="40" y="200" width="160" height="40" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="120" y="220" text-anchor="middle" fill="#3fb950" font-size="11">Anon Auth Session</text>
+      <text x="120" y="235" text-anchor="middle" fill="#8b949e" font-size="10">JWT token</text>
+      <!-- arrows from client 1 to supabase -->
+      <line x1="220" y1="165" x2="340" y2="165" stroke="#30363d" stroke-width="1.5" stroke-dasharray="4"/>
+      <polygon points="335,161 345,165 335,169" fill="#30363d"/>
+      <text x="280" y="155" text-anchor="middle" fill="#8b949e" font-size="10">Realtime WS</text>
+      <line x1="220" y1="220" x2="340" y2="220" stroke="#30363d" stroke-width="1.5" stroke-dasharray="4"/>
+      <polygon points="335,216 345,220 335,224" fill="#30363d"/>
+      <text x="280" y="210" text-anchor="middle" fill="#8b949e" font-size="10">REST / RPC</text>
+
+      <!-- Supabase -->
+      <rect x="340" y="20" width="280" height="460" rx="10" fill="#1c2129" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="480" y="48" text-anchor="middle" fill="#3fb950" font-weight="bold" font-size="14">Supabase</text>
+      <rect x="360" y="65" width="240" height="60" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="480" y="90" text-anchor="middle" fill="#e6edf3" font-size="11">Postgres DB</text>
+      <text x="480" y="108" text-anchor="middle" fill="#8b949e" font-size="10">rooms · games · dice_rolls</text>
+      <text x="480" y="120" text-anchor="middle" fill="#8b949e" font-size="10">placements · messages · events</text>
+      <rect x="360" y="140" width="240" height="50" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="480" y="163" text-anchor="middle" fill="#e6edf3" font-size="11">Realtime Engine</text>
+      <text x="480" y="178" text-anchor="middle" fill="#8b949e" font-size="10">Broadcasts game_events to all subscribers</text>
+      <rect x="360" y="205" width="240" height="130" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="480" y="228" text-anchor="middle" fill="#e6edf3" font-size="11">Edge Functions (Deno)</text>
+      <text x="390" y="248" fill="#d2a8ff" font-size="10">• roll-dice</text>
+      <text x="390" y="263" fill="#d2a8ff" font-size="10">• place-die</text>
+      <text x="390" y="278" fill="#d2a8ff" font-size="10">• resolve-round</text>
+      <text x="390" y="293" fill="#d2a8ff" font-size="10">• create-room / join-room</text>
+      <text x="390" y="308" fill="#d2a8ff" font-size="10">• ai-agent-tick</text>
+      <text x="390" y="323" fill="#d2a8ff" font-size="10">• reconnect-session</text>
+      <rect x="360" y="350" width="240" height="50" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="480" y="373" text-anchor="middle" fill="#e6edf3" font-size="11">Row Level Security</text>
+      <text x="480" y="388" text-anchor="middle" fill="#8b949e" font-size="10">Enforces hidden info at DB layer</text>
+      <rect x="360" y="415" width="240" height="50" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="480" y="438" text-anchor="middle" fill="#e6edf3" font-size="11">Anonymous Auth</text>
+      <text x="480" y="453" text-anchor="middle" fill="#8b949e" font-size="10">Session identity / room ownership</text>
+
+      <!-- Arrows from supabase to right -->
+      <line x1="620" y1="260" x2="680" y2="260" stroke="#30363d" stroke-width="1.5" stroke-dasharray="4"/>
+      <polygon points="675,256 685,260 675,264" fill="#30363d"/>
+
+      <!-- AI Agent Service -->
+      <rect x="680" y="100" width="200" height="200" rx="10" fill="#1c2129" stroke="#d2a8ff" stroke-width="1.5"/>
+      <text x="780" y="128" text-anchor="middle" fill="#d2a8ff" font-weight="bold" font-size="13">AI Agent</text>
+      <text x="780" y="145" text-anchor="middle" fill="#8b949e" font-size="10">(Edge Function or separate service)</text>
+      <rect x="700" y="158" width="160" height="50" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="780" y="178" text-anchor="middle" fill="#e6edf3" font-size="11">Game State Reader</text>
+      <text x="780" y="193" text-anchor="middle" fill="#8b949e" font-size="10">Builds context for LLM</text>
+      <rect x="700" y="220" width="160" height="50" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="780" y="243" text-anchor="middle" fill="#e6edf3" font-size="11">Claude API Call</text>
+      <text x="780" y="258" text-anchor="middle" fill="#8b949e" font-size="10">claude-sonnet-4-6</text>
+      <rect x="700" y="282" width="160" height="40" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="780" y="302" text-anchor="middle" fill="#e6edf3" font-size="11">Action Executor</text>
+
+      <!-- Claude API -->
+      <rect x="680" y="330" width="200" height="80" rx="10" fill="#1c2129" stroke="#f78166" stroke-width="1.5"/>
+      <text x="780" y="360" text-anchor="middle" fill="#f78166" font-weight="bold" font-size="13">Anthropic API</text>
+      <text x="780" y="380" text-anchor="middle" fill="#8b949e" font-size="10">claude-sonnet-4-6</text>
+      <text x="780" y="396" text-anchor="middle" fill="#8b949e" font-size="10">Streaming responses</text>
+      <line x1="780" y1="330" x2="780" y2="322" stroke="#f78166" stroke-width="1.5" stroke-dasharray="3"/>
+      <polygon points="776,326 780,316 784,326" fill="#f78166"/>
+
+      <!-- Browser Client 2 (Human or observer) -->
+      <rect x="20" y="20" width="200" height="460" rx="10" fill="none" stroke="none"/> <!-- placeholder for second client label -->
+
+      <!-- Label: second subscription path -->
+      <text x="480" y="490" text-anchor="middle" fill="#8b949e" font-size="10">All clients subscribe to same game_events channel via Realtime</text>
+    </svg>
+  </div>
+
+  <p style="color:var(--muted);font-size:.9rem;">Both human clients and the AI agent receive game state through the same Supabase Realtime channel. The AI agent is triggered by an Edge Function that fires after each placement event; it reads game state, calls the Claude API, then writes an action back through the standard <code>place-die</code> Edge Function.</p>
+</section>
+
+
+<!-- 4. DATA MODEL -->
+<section id="data-model">
+  <h2>4. Database Schema</h2>
+
+  <div class="diagram-wrap">
+    <div class="mermaid">
+erDiagram
+    rooms {
+        uuid id PK
+        text code UK
+        text status
+        timestamptz created_at
+        timestamptz expires_at
+    }
+    games {
+        uuid id PK
+        uuid room_id FK
+        int current_round
+        text current_phase
+        text status
+        jsonb game_config
+        jsonb approach_state
+        jsonb module_state
+        timestamptz updated_at
+    }
+    players {
+        uuid id PK
+        uuid game_id FK
+        text role
+        uuid session_id
+        bool is_ai
+        text ai_model
+        bool connected
+    }
+    dice_rolls {
+        uuid id PK
+        uuid game_id FK
+        int round
+        text player_role
+        int[] values
+        int[] remaining
+        timestamptz rolled_at
+    }
+    placements {
+        uuid id PK
+        uuid game_id FK
+        int round
+        text player_role
+        int die_value
+        text module
+        int sequence
+        bool revealed
+        timestamptz placed_at
+    }
+    messages {
+        uuid id PK
+        uuid game_id FK
+        int round
+        text player_role
+        text content
+        text msg_type
+        timestamptz created_at
+    }
+    game_events {
+        uuid id PK
+        uuid game_id FK
+        text event_type
+        jsonb payload
+        timestamptz created_at
+    }
+
+    rooms ||--o{ games : "has"
+    games ||--|| players : "pilot"
+    games ||--|| players : "copilot"
+    games ||--o{ dice_rolls : "has"
+    games ||--o{ placements : "has"
+    games ||--o{ messages : "has"
+    games ||--o{ game_events : "emits"
+    </div>
+  </div>
+
+  <h3>Row Level Security — Hidden Information</h3>
+  <table>
+    <thead><tr><th>Table</th><th>SELECT policy</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td><code>dice_rolls</code></td><td>Only the owning player (by <code>player_role</code> + <code>session_id</code>) can read their own roll</td><td>Prevents opponent seeing your dice</td></tr>
+      <tr><td><code>placements</code></td><td><code>revealed = true</code> OR <code>player_role = own role</code></td><td>Opponent sees <em>that</em> a die was placed (and where) but not value until reveal</td></tr>
+      <tr><td><code>messages</code></td><td>Both players can read all messages</td><td>Communication channel is public within game</td></tr>
+      <tr><td><code>game_events</code></td><td>Both players can read all events</td><td>Game flow visible to everyone; sensitive data not stored here</td></tr>
+    </tbody>
+  </table>
+
+  <div class="highlight-box">
+    <strong>Key insight:</strong> Store die values in <code>dice_rolls</code> (private) and only expose them in <code>placements</code> after <code>revealed = true</code>. The Revelation phase is a single edge function call that sets <code>revealed = true</code> on all placements for that round atomically, triggering realtime updates to both clients simultaneously.
+  </div>
+</section>
+
+
+<!-- 5. STATE MACHINE -->
+<section id="state-machine">
+  <h2>5. Game State Machine</h2>
+
+  <div class="diagram-wrap">
+    <div class="mermaid">
+stateDiagram-v2
+    [*] --> LOBBY : Room created
+    LOBBY --> ROLLING : Both players ready
+    ROLLING --> PLANNING : Server rolled dice for both players
+    PLANNING --> PLACING : Either player ends planning\n(or timer expires)
+    PLACING --> PLACING : Player places a die\n(alternating turns)
+    PLACING --> REVEALING : All 8 dice placed
+    REVEALING --> RESOLVING : Server sets revealed=true atomically
+    RESOLVING --> FAILED : Module violation detected
+    RESOLVING --> APPROACH : Effects applied successfully
+    APPROACH --> ROLLING : More rounds to go
+    APPROACH --> LANDING : Final approach complete
+    LANDING --> PLACING : Brakes placement phase
+    LANDING --> VICTORY : Plane stopped safely
+    LANDING --> CRASHED : Overshot runway
+    FAILED --> [*]
+    VICTORY --> [*]
+    CRASHED --> [*]
+
+    note right of PLACING
+        AI agent turn:
+        ai-agent-tick edge function
+        fires automatically
+    end note
+    note right of PLANNING
+        Free communication allowed.
+        AI can send chat messages here.
+    end note
+    </div>
+  </div>
+
+  <h3>Phase Ownership</h3>
+  <table>
+    <thead><tr><th>Phase</th><th>Who Acts</th><th>Timer?</th><th>Server Action</th></tr></thead>
+    <tbody>
+      <tr><td>LOBBY</td><td>Both players</td><td>No</td><td>Wait for both <code>ready = true</code></td></tr>
+      <tr><td>ROLLING</td><td>Server only</td><td>Instant</td><td><code>roll-dice</code> edge function fires for each player</td></tr>
+      <tr><td>PLANNING</td><td>Both (chat)</td><td>Optional (60s)</td><td>Emit <code>planning_started</code> event; AI generates opening message</td></tr>
+      <tr><td>PLACING</td><td>Alternating (Pilot first)</td><td>30s per turn</td><td><code>place-die</code> validates and records; triggers AI if AI's turn</td></tr>
+      <tr><td>REVEALING</td><td>Server only</td><td>Instant</td><td>Atomic <code>UPDATE placements SET revealed=true</code></td></tr>
+      <tr><td>RESOLVING</td><td>Server only</td><td>Instant</td><td><code>resolve-round</code> computes effects, updates <code>game_state</code></td></tr>
+      <tr><td>APPROACH</td><td>Server + display</td><td>3s animation</td><td>Plane position updated; check win/loss conditions</td></tr>
+    </tbody>
+  </table>
+</section>
+
+
+<!-- 6. REALTIME -->
+<section id="realtime">
+  <h2>6. Realtime &amp; Hidden Information Design</h2>
+
+  <div class="diagram-wrap">
+    <div class="mermaid">
+sequenceDiagram
+    participant P1 as Pilot (Human)
+    participant SB as Supabase
+    participant EF as Edge Function
+    participant P2 as CoPilot (AI Agent)
+
+    P1->>EF: POST /place-die {module: "axis", die_index: 2}
+    EF->>SB: INSERT placement {value: 5, revealed: false}
+    SB-->>P1: Realtime: placement_added {module:"axis", player:"pilot", value: null}
+    SB-->>P2: Realtime: placement_added {module:"axis", player:"pilot", value: null}
+    Note over P2: AI sees location, not value
+    EF->>EF: trigger ai-agent-tick
+    P2->>EF: POST /place-die {module: "engine_right", die_index: 0}
+    EF->>SB: INSERT placement {value: 3, revealed: false}
+    SB-->>P1: Realtime: placement_added {module:"engine_right", player:"copilot", value: null}
+    SB-->>P2: Realtime: placement_added {module:"engine_right", player:"copilot", value: null}
+    Note over P1,P2: ... all 8 dice placed ...
+    EF->>SB: UPDATE placements SET revealed=true WHERE round=3 AND game_id=X
+    SB-->>P1: Realtime: all placements revealed with values
+    SB-->>P2: Realtime: all placements revealed with values
+    EF->>EF: resolve-round
+    SB-->>P1: Realtime: round_resolved {effects, approach_pos, status}
+    SB-->>P2: Realtime: round_resolved {effects, approach_pos, status}
+    </div>
+  </div>
+
+  <h3>Supabase Realtime Channel Strategy</h3>
+  <table>
+    <thead><tr><th>Channel</th><th>Subscribed by</th><th>Events</th></tr></thead>
+    <tbody>
+      <tr><td><code>game:{game_id}</code></td><td>All participants</td><td><code>phase_changed</code>, <code>placement_added</code>, <code>round_resolved</code>, <code>player_connected</code>, <code>player_disconnected</code></td></tr>
+      <tr><td><code>messages:{game_id}</code></td><td>All participants</td><td>New chat/AI messages in realtime</td></tr>
+      <tr><td><code>my_dice:{game_id}:{role}</code></td><td>Only the owning player</td><td>Private: own dice values after roll</td></tr>
+    </tbody>
+  </table>
+</section>
+
+
+<!-- 7. EDGE FUNCTIONS -->
+<section id="edge-functions">
+  <h2>7. Supabase Edge Functions</h2>
+  <div class="card-grid">
+    <div class="card">
+      <h3>create-room</h3>
+      <ul>
+        <li>Generates unique 6-char room code</li>
+        <li>Creates <code>rooms</code> + <code>games</code> records</li>
+        <li>Assigns caller as Pilot or CoPilot based on query param</li>
+        <li>Returns <code>{ roomCode, gameId, role }</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>join-room</h3>
+      <ul>
+        <li>Validates room code, checks game is in LOBBY state</li>
+        <li>Assigns second player to remaining role</li>
+        <li>If joining as AI: sets <code>is_ai=true</code>, skips ready check</li>
+        <li>When both players joined → emits <code>game_ready</code> event</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>roll-dice</h3>
+      <ul>
+        <li>Uses <code>crypto.getRandomValues()</code> — no client influence</li>
+        <li>Inserts into <code>dice_rolls</code> (private to that player via RLS)</li>
+        <li>Fires for each player separately; after both rolled → phase → PLANNING</li>
+        <li>AI player rolls are triggered immediately by the function itself</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>place-die</h3>
+      <ul>
+        <li>Validates: correct player's turn, valid module, die exists in remaining pool</li>
+        <li>Validates module-specific rules (flap ascending, landing gear ≥3, etc.)</li>
+        <li>Inserts <code>placements</code> with <code>revealed=false</code></li>
+        <li>Updates <code>dice_rolls.remaining</code></li>
+        <li>If all 8 dice placed → triggers <code>reveal-round</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>resolve-round</h3>
+      <ul>
+        <li>Atomically sets <code>placements.revealed=true</code></li>
+        <li>Evaluates all module effects in dependency order</li>
+        <li>Checks failure conditions; updates <code>game_state</code></li>
+        <li>Advances <code>current_round</code> or sets final status</li>
+        <li>Emits <code>round_resolved</code> event with full diff</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>ai-agent-tick</h3>
+      <ul>
+        <li>Triggered by placement events when it's the AI's turn</li>
+        <li>Reads full game state visible to AI role (respects RLS)</li>
+        <li>Builds structured prompt: rules + state + history + available actions</li>
+        <li>Calls Claude API with <code>tools</code> for structured action output</li>
+        <li>Executes returned action via internal <code>place-die</code> call</li>
+        <li>On PLANNING phase: generates a chat message via streaming</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- 8. LLM AGENT -->
+<section id="llm-agent">
+  <h2>8. LLM Agent Design</h2>
+
+  <h3>Agent Architecture</h3>
+  <div class="diagram-wrap">
+    <div class="mermaid">
+flowchart TD
+    A[Game Event: AI's turn to place] --> B[Build Context]
+    B --> C[My dice values + remaining]
+    B --> D[Board state: all modules\nwhat's placed so far]
+    B --> E[Opponent placement history\nlocation only, no values]
+    B --> F[Available actions list]
+    B --> G[Round history + comms]
+    C & D & E & F & G --> H[Claude API Call\nwith tool_use schema]
+    H --> I{Response type?}
+    I -- place_die action --> J[Execute place-die edge fn]
+    I -- send_message --> K[Insert into messages table]
+    I -- use_concentration --> L[Reroll die, update state]
+    J & K & L --> M[Emit game_event]
+    M --> N[Both clients update via Realtime]
+    </div>
+  </div>
+
+  <h3>Claude Tool Schema for Agent Actions</h3>
+  <pre><code>{
+  "tools": [
+    {
+      "name": "place_die",
+      "description": "Place one of your remaining dice onto a cockpit module.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "die_index": { "type": "integer", "description": "0-based index of die in your remaining dice" },
+          "module": {
+            "type": "string",
+            "enum": ["axis", "engine_left", "engine_right", "flap",
+                     "landing_gear", "radio", "concentration", "brakes"]
+          },
+          "reasoning": { "type": "string", "description": "Brief internal reasoning (shown to human as AI thought)" }
+        },
+        "required": ["die_index", "module"]
+      }
+    },
+    {
+      "name": "send_message",
+      "description": "Send a communication message during the planning phase. DO NOT reveal your dice values.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "content": { "type": "string", "maxLength": 300 }
+        },
+        "required": ["content"]
+      }
+    }
+  ]
+}</code></pre>
+
+  <h3>System Prompt Strategy</h3>
+  <div class="card">
+    <ul>
+      <li><strong>Role:</strong> "You are the {role} of a commercial aircraft. You and your partner must cooperate to land safely."</li>
+      <li><strong>Rules injection:</strong> Full module rules as structured JSON, not prose — LLM parses JSON more reliably</li>
+      <li><strong>Communication constraint:</strong> Explicitly forbid revealing die values in messages: "You may say WHICH slot you intend to use, but NEVER the value."</li>
+      <li><strong>Reasoning display:</strong> The <code>reasoning</code> field from <code>place_die</code> is shown to the human player as "AI is thinking..." — gives transparency without breaking rules</li>
+      <li><strong>Context window:</strong> Include last 3 rounds of history + current round state. Truncate older history to stay within limits.</li>
+      <li><strong>Temperature:</strong> Use 0.3–0.5 for placement decisions (consistent), 0.7 for planning messages (natural conversation)</li>
+    </ul>
+  </div>
+
+  <div class="warn-box">
+    <strong>Risk:</strong> The LLM may hallucinate invalid actions (e.g., place on a module that's already filled, or claim a die value it doesn't have). The <code>ai-agent-tick</code> edge function must validate all AI actions with the same game logic as human moves, and retry up to 2 times with the error message added to context before falling back to a safe default action.
+  </div>
+</section>
+
+
+<!-- 9. FRONTEND -->
+<section id="frontend">
+  <h2>9. Frontend Architecture &amp; Component Tree</h2>
+
+  <div class="diagram-wrap">
+    <div class="mermaid">
+flowchart TD
+    App --> Router
+    Router --> LobbyPage
+    Router --> GamePage
+    Router --> SpectatorPage
+
+    LobbyPage --> CreateRoomForm
+    LobbyPage --> JoinRoomForm
+    LobbyPage --> RoleSelector
+
+    GamePage --> GameLayout
+    GameLayout --> CockpitPanel
+    GameLayout --> SidePanel
+    GameLayout --> PhaseBar
+
+    CockpitPanel --> AxisModule
+    CockpitPanel --> EngineModule
+    CockpitPanel --> FlapModule
+    CockpitPanel --> LandingGearModule
+    CockpitPanel --> RadioModule
+    CockpitPanel --> ConcentrationModule
+    CockpitPanel --> BrakesModule
+
+    SidePanel --> ApproachTrack
+    SidePanel --> DiceHand
+    SidePanel --> ChatPanel
+
+    DiceHand --> DieToken
+    ChatPanel --> MessageList
+    ChatPanel --> MessageInput
+    ChatPanel --> AIThinkingIndicator
+
+    PhaseBar --> PhaseLabel
+    PhaseBar --> TurnIndicator
+    PhaseBar --> Timer
+    </div>
+  </div>
+
+  <h3>Key Hooks</h3>
+  <table>
+    <thead><tr><th>Hook</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td><code>useGameRoom(roomCode)</code></td><td>Room join/leave, player presence, connection status</td></tr>
+      <tr><td><code>useGameState(gameId)</code></td><td>Subscribe to <code>game_events</code> realtime channel; maintain full local state</td></tr>
+      <tr><td><code>useMyDice(gameId, role)</code></td><td>Subscribe to private dice channel; manage selected/remaining dice</td></tr>
+      <tr><td><code>usePlacement(gameId)</code></td><td>Selected die state, optimistic placement, validation errors</td></tr>
+      <tr><td><code>useChat(gameId)</code></td><td>Subscribe to messages, send messages, AI typing indicator</td></tr>
+      <tr><td><code>usePhaseTimer(phase)</code></td><td>Countdown timer per phase; triggers forced action on expiry</td></tr>
+    </tbody>
+  </table>
+
+  <h3>State Management</h3>
+  <div class="card">
+    <p>Use <strong>Zustand</strong> for global game state (single store with slices):</p>
+    <ul>
+      <li><code>gameSlice</code> — phase, round, approach position, module states</li>
+      <li><code>diceSlice</code> — my dice, selected die, placements visible to me</li>
+      <li><code>chatSlice</code> — messages, AI thinking stream</li>
+      <li><code>uiSlice</code> — animations, selected module, hover states</li>
+    </ul>
+    <p style="margin-top:.5rem;">Realtime events from Supabase flow into Zustand via a single <code>eventDispatcher</code> — keeps UI reactive without prop drilling.</p>
+  </div>
+</section>
+
+
+<!-- 10. PROJECT STRUCTURE -->
+<section id="project-structure">
+  <h2>10. Project Directory Structure</h2>
+  <pre><code>sky-team/
+├── apps/
+│   └── web/                      # React + Vite frontend
+│       ├── src/
+│       │   ├── components/
+│       │   │   ├── cockpit/      # Module components (Axis, Engine, etc.)
+│       │   │   ├── dice/         # DiceHand, DieToken, DiceRoller animation
+│       │   │   ├── approach/     # ApproachTrack SVG visualization
+│       │   │   ├── chat/         # ChatPanel, AIThinkingIndicator
+│       │   │   ├── lobby/        # CreateRoom, JoinRoom, RoleSelector
+│       │   │   └── ui/           # Shared: Button, Modal, Timer, Toast
+│       │   ├── hooks/            # useGameRoom, useGameState, etc.
+│       │   ├── stores/           # Zustand slices
+│       │   ├── lib/
+│       │   │   ├── supabase.ts   # Supabase client singleton
+│       │   │   └── api.ts        # Edge function callers
+│       │   ├── pages/            # LobbyPage, GamePage, SpectatorPage
+│       │   └── types/            # Shared TS types (re-exported from packages)
+│       ├── index.html
+│       └── vite.config.ts
+│
+├── packages/
+│   ├── game-engine/              # Pure TS — game rules, validation, resolution
+│   │   ├── src/
+│   │   │   ├── modules/          # Per-module validation logic
+│   │   │   ├── resolver.ts       # Round resolution
+│   │   │   ├── conditions.ts     # Win/loss conditions
+│   │   │   └── index.ts
+│   │   └── package.json
+│   └── types/                    # Shared types (GameState, Placement, etc.)
+│
+├── supabase/
+│   ├── functions/
+│   │   ├── create-room/index.ts
+│   │   ├── join-room/index.ts
+│   │   ├── roll-dice/index.ts
+│   │   ├── place-die/index.ts
+│   │   ├── resolve-round/index.ts
+│   │   └── ai-agent-tick/index.ts
+│   ├── migrations/
+│   │   ├── 001_initial_schema.sql
+│   │   └── 002_rls_policies.sql
+│   └── config.toml
+│
+└── PLAN.html                     # This file</code></pre>
+
+  <div class="highlight-box">
+    <strong>Monorepo approach:</strong> The <code>packages/game-engine</code> package is shared between the Supabase Edge Functions and the frontend. This means game validation logic is defined once and runs in both places — the server validates for security, the client validates for instant UX feedback. Use <code>pnpm workspaces</code> or <code>turborepo</code>.
+  </div>
+</section>
+
+
+<!-- 11. SKILLS -->
+<section id="skills">
+  <h2>11. Suggested Claude Code Skills for This Project</h2>
+  <p style="color:var(--muted)">Skills are reusable slash commands you can add to your project's <code>.claude/commands/</code> directory. Here are the most valuable ones to create.</p>
+
+  <table>
+    <thead><tr><th>Skill Name</th><th>Slash Command</th><th>What It Does</th><th>Priority</th></tr></thead>
+    <tbody class="skill-row">
+      <tr>
+        <td>Rules Engine Test</td>
+        <td><code>/test-module</code></td>
+        <td>Given a module name and a dice scenario (as JSON), runs the validation logic and prints pass/fail with the expected game effect. Critical for TDD on game rules.</td>
+        <td>High</td>
+      </tr>
+      <tr>
+        <td>Game Scenario Runner</td>
+        <td><code>/run-scenario</code></td>
+        <td>Plays through a full scripted game scenario (dice values + placements predefined) and asserts the final game state. Catches regressions in resolve-round logic.</td>
+        <td>High</td>
+      </tr>
+      <tr>
+        <td>Supabase Migration</td>
+        <td><code>/db-migrate</code></td>
+        <td>Generates a new timestamped migration file, runs it against local Supabase, and checks for RLS policy errors. Saves boilerplate on each schema change.</td>
+        <td>High</td>
+      </tr>
+      <tr>
+        <td>Agent Prompt Tester</td>
+        <td><code>/test-agent</code></td>
+        <td>Loads a saved game state JSON, runs the ai-agent-tick logic locally (without Supabase), prints the Claude API response and the action it would take. Fast iteration on prompts.</td>
+        <td>High</td>
+      </tr>
+      <tr>
+        <td>Cockpit Module Scaffold</td>
+        <td><code>/new-module</code></td>
+        <td>Given a module name, generates the React component + validation function + DB column definition boilerplate. Useful if adding expansion modules later.</td>
+        <td>Medium</td>
+      </tr>
+      <tr>
+        <td>Realtime Debug</td>
+        <td><code>/realtime-monitor</code></td>
+        <td>Opens a Supabase Realtime listener for a given game_id and pretty-prints all incoming events. Indispensable for debugging sync issues.</td>
+        <td>Medium</td>
+      </tr>
+      <tr>
+        <td>RLS Policy Audit</td>
+        <td><code>/audit-rls</code></td>
+        <td>Connects to local Supabase and runs a suite of SQL queries that simulate both player roles, verifying hidden info is never leaked across role boundaries.</td>
+        <td>Medium</td>
+      </tr>
+      <tr>
+        <td>AI Game Replay</td>
+        <td><code>/replay-game</code></td>
+        <td>Given a game_id, fetches all game_events and placements and steps through the game state turn by turn in the terminal. Debugging tool for completed games.</td>
+        <td>Low</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+
+<!-- 12. PHASES -->
+<section id="phases">
+  <h2>12. Development Phases</h2>
+
+  <div class="timeline">
+    <div class="timeline-item phase1">
+      <div class="phase-label">Phase 1 — Foundation (Weeks 1–2)</div>
+      <div class="card">
+        <ul>
+          <li>Supabase project setup: schema, RLS policies, local dev environment</li>
+          <li><code>packages/game-engine</code>: pure TS rules engine with full test coverage</li>
+          <li>Edge functions: <code>create-room</code>, <code>join-room</code>, <code>roll-dice</code></li>
+          <li>React app scaffold: Vite + Tailwind + Zustand + Supabase client</li>
+          <li>Lobby page: create/join room by code, role assignment</li>
+          <li><strong>Exit criteria:</strong> Two browser tabs can join the same game and see each other's presence</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="timeline-item phase2">
+      <div class="phase-label">Phase 2 — Core Gameplay (Weeks 3–5)</div>
+      <div class="card">
+        <ul>
+          <li>Edge functions: <code>place-die</code> (with full module validation), <code>resolve-round</code></li>
+          <li>Cockpit UI: all base game modules rendered, accept die drops</li>
+          <li>DiceHand component: shows my dice, selection UX</li>
+          <li>Realtime sync: placement events, phase transitions</li>
+          <li>Revelation animation: dice flip reveal on all slots simultaneously</li>
+          <li>Approach track SVG: animated plane position updates</li>
+          <li>Win/loss detection and end-game screen</li>
+          <li><strong>Exit criteria:</strong> Two humans can play a complete game from start to finish</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="timeline-item phase3">
+      <div class="phase-label">Phase 3 — AI Agent (Weeks 6–7)</div>
+      <div class="card">
+        <ul>
+          <li>Edge function: <code>ai-agent-tick</code> with Claude API integration</li>
+          <li>System prompt design and iteration (use <code>/test-agent</code> skill)</li>
+          <li>Planning phase messages: AI communicates strategy without revealing dice</li>
+          <li>Placement phase: AI selects dice and modules autonomously</li>
+          <li>AI "thinking" streaming display in ChatPanel</li>
+          <li>Error recovery: retry on invalid AI action (up to 2x)</li>
+          <li>Join-as-AI option in lobby UI</li>
+          <li><strong>Exit criteria:</strong> Human can play a full game vs the AI agent at reasonable quality</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="timeline-item phase4">
+      <div class="phase-label">Phase 4 — Polish &amp; Resilience (Week 8+)</div>
+      <div class="card">
+        <ul>
+          <li>Reconnection handling: rejoin game mid-round, restore state</li>
+          <li>Phase timers: auto-pass if player is idle too long</li>
+          <li>Sound effects and ambient audio (optional)</li>
+          <li>Mobile-responsive layout (cockpit reflows to vertical stack)</li>
+          <li>Room expiry and cleanup job (Supabase cron or pg_cron)</li>
+          <li>Error boundary UX: toast notifications for edge function errors</li>
+          <li>Performance: memoize cockpit module renders, limit realtime payload size</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- 13. MISSING -->
+<section id="missing">
+  <h2>13. Missing Components &amp; Risks You Should Know About</h2>
+  <p style="color:var(--muted);margin-bottom:1rem;">These are significant pieces not yet addressed in the plan — each one is a real implementation decision.</p>
+
+  <div class="card-grid">
+    <div class="card risk">
+      <h3>Reconnection &amp; Session Recovery</h3>
+      <p>If a player's tab closes mid-game, how do they rejoin? Supabase anonymous sessions are browser-local. You need a strategy: either store session tokens in <code>localStorage</code> + validate on rejoin, or generate a one-time "rejoin code" shown to the player at game start.</p>
+    </div>
+    <div class="card risk">
+      <h3>Communication Rule Enforcement</h3>
+      <p>The physical game relies on the honor system for the "don't say your die value" rule. In your digital version during PLACING phase, you could: (a) disable chat entirely, (b) allow free text but warn, or (c) run messages through a quick LLM filter that rejects value reveals. Option (c) adds latency. You need a policy decision here.</p>
+    </div>
+    <div class="card risk">
+      <h3>AI Agent Cost &amp; Rate Limiting</h3>
+      <p>Each AI turn makes a Claude API call. A full game is ~6 rounds × ~4 AI turns/round = ~24 API calls. At scale this adds up. Add per-room rate limiting in <code>ai-agent-tick</code> and expose the API key only server-side (Edge Function env var — never in frontend).</p>
+    </div>
+    <div class="card risk">
+      <h3>Cockpit Visual Design</h3>
+      <p>The cockpit layout is a complex 2D board. You need a visual design decision: pixel-art style (Canvas/WebGL), SVG-based instrument panels, or a modern card-based layout. This will significantly affect build time. Recommend starting with cards, then upgrading the visuals once gameplay is solid.</p>
+    </div>
+    <div class="card risk">
+      <h3>Server-Side Timeout / Stuck Games</h3>
+      <p>If one player goes offline during PLACING phase, the game hangs. Needs a server-side mechanism: either Supabase pg_cron polling for stale games, or a Deno cron within an Edge Function that force-resolves timed-out turns.</p>
+    </div>
+    <div class="card risk">
+      <h3>Dice Fairness Audit Log</h3>
+      <p>Players may suspect dice are rigged. Consider storing the RNG seed (or at least a hash) with each <code>dice_roll</code> row so a player can independently verify the roll after the game. This is a trust feature, not just a debugging feature.</p>
+    </div>
+    <div class="card risk">
+      <h3>Approach Track Configuration</h3>
+      <p>Different Sky Team airports have different approach track configs, traffic tokens, and special rules. Even if you're doing base game only, abstract the airport config into a JSON schema from day one. Hardcoding will hurt later.</p>
+    </div>
+    <div class="card risk">
+      <h3>AI Agent's "Persona"</h3>
+      <p>The AI co-pilot/pilot needs a personality that makes it feel like a real crewmate — not just a move optimizer. Consider naming the AI, giving it a communication style (terse military, friendly civilian), and having it express uncertainty ("I'm not sure about the axis this round..."). This is a significant prompt engineering task that affects player experience more than any technical feature.</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:2rem;">Quick Wins You Can Add Without Significant Complexity</h3>
+  <table>
+    <thead><tr><th>Feature</th><th>Effort</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Shareable game link (encodes room code in URL)</td><td>30 min</td><td>Major UX improvement for inviting players</td></tr>
+      <tr><td>Game summary screen (what went wrong, close calls)</td><td>2h</td><td>Replay value, learning tool</td></tr>
+      <tr><td>Emoji reactions during planning phase</td><td>1h</td><td>Communication substitute when words are limited</td></tr>
+      <tr><td>Sound cue when opponent places a die</td><td>1h</td><td>Presence feeling without video</td></tr>
+      <tr><td>Keyboard shortcuts for die selection</td><td>2h</td><td>Power user speed</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer style="text-align:center;color:var(--muted);font-size:.85rem;padding:3rem 0 1rem;border-top:1px solid var(--border);margin-top:3rem;">
+  Sky Team Digital — Architecture Plan &mdash; Generated June 2026<br/>
+  Base game scope · Supabase + React + Claude AI Agent
+</footer>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      background: '#161b22',
+      primaryColor: '#1f3a5f',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#30363d',
+      lineColor: '#58a6ff',
+      secondaryColor: '#2d1f5f',
+      tertiaryColor: '#1a3a2a',
+      edgeLabelBackground: '#161b22',
+      fontSize: '14px'
+    },
+    flowchart: { curve: 'basis', htmlLabels: true },
+    er: { useMaxWidth: true },
+    sequence: { useMaxWidth: true }
+  });
+</script>
+</body>
+</html>
