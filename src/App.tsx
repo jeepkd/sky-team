@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useSession } from '@/hooks/useSession';
-import { joinRoom } from '@/lib/rooms';
+import { useGameState } from '@/hooks/useGameState';
+import { joinRoom } from '@/lib/api';
 import { Lobby } from '@/components/lobby/Lobby';
 import { RoomScreen } from '@/components/room/RoomScreen';
+import { CockpitPanel } from '@/components/cockpit/CockpitPanel';
 
 function getRoomCodeFromUrl(): string | undefined {
   return new URLSearchParams(window.location.search).get('room') ?? undefined;
@@ -13,27 +15,48 @@ export default function App() {
   const urlCode = getRoomCodeFromUrl();
   const [autoJoining, setAutoJoining] = useState(false);
 
-  // Auto-join when opened via invite link
+  const gameState = useGameState(session?.gameId ?? null);
+  const myDice = gameState?.remaining[session?.role ?? 'pilot'] ?? [];
+
   useEffect(() => {
     if (!urlCode || session) return;
     setAutoJoining(true);
     joinRoom(urlCode)
-      .then(setSession)
-      .catch(() => {}) // fall through to lobby with pre-filled code on error
+      .then((r) => setSession({ roomCode: urlCode, gameId: r.gameId, role: r.role as 'pilot' | 'copilot' }))
+      .catch(() => {})
       .finally(() => setAutoJoining(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (session) {
-    return <RoomScreen session={session} onLeave={() => setSession(null)} />;
-  }
 
   if (autoJoining) {
     return (
       <div className="flex min-h-full items-center justify-center p-8">
-        <p className="text-gray-400 text-sm">Joining room…</p>
+        <p className="text-gray-400 text-sm font-mono">Joining room…</p>
       </div>
     );
   }
 
-  return <Lobby onSession={setSession} initialCode={urlCode} />;
+  if (!session) {
+    return <Lobby onSession={setSession} initialCode={urlCode} />;
+  }
+
+  // Show cockpit once the game is in an active playing phase
+  const isPlaying =
+    gameState &&
+    gameState.phase !== 'LOBBY' &&
+    gameState.status === 'active';
+
+  const isEnded = gameState?.phase === 'ENDED';
+
+  if (isPlaying || isEnded) {
+    return (
+      <CockpitPanel
+        session={session}
+        gameState={gameState}
+        myDice={myDice}
+        onLeave={() => setSession(null)}
+      />
+    );
+  }
+
+  return <RoomScreen session={session} onLeave={() => setSession(null)} />;
 }

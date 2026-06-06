@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase, getClientId } from '@/lib/supabase';
 import { fetchPlayers } from '@/lib/rooms';
 import { usePresence } from '@/hooks/usePresence';
+import { rollDice } from '@/lib/api';
 import { ROLES } from '@/types';
 import type { Player, Session } from '@/types';
 import { SeatCard } from './SeatCard';
@@ -17,6 +18,7 @@ export function RoomScreen({ session, onLeave }: Props) {
   const clientId = getClientId();
   const [players, setPlayers] = useState<Player[]>([]);
   const [copied, setCopied] = useState(false);
+  const [starting, setStarting] = useState(false);
   const { online } = usePresence(gameId, role, clientId);
 
   const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
@@ -53,6 +55,17 @@ export function RoomScreen({ session, onLeave }: Props) {
 
     return () => { supabase.removeChannel(channel); };
   }, [gameId]);
+
+  const bothPresent = ROLES.every((r) => online[r]);
+
+  async function startGame() {
+    setStarting(true);
+    try {
+      await rollDice(gameId);
+    } finally {
+      setStarting(false);
+    }
+  }
 
   function copyInvite() {
     navigator.clipboard.writeText(shareUrl);
@@ -92,6 +105,17 @@ export function RoomScreen({ session, onLeave }: Props) {
             />
           ))}
         </div>
+
+        {bothPresent && (
+          <Button
+            variant="primary"
+            onClick={startGame}
+            disabled={starting}
+            className="w-full"
+          >
+            {starting ? 'Starting…' : 'Start Game'}
+          </Button>
+        )}
 
         <Button variant="secondary" onClick={onLeave} className="w-full">
           Leave room
