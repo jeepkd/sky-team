@@ -81,7 +81,9 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
       group: 'flaps',
       owner: 'copilot',
       validate(die, state): ValidResult {
-        if (slotOccupied(id, state)) return fail(`Flap ${i + 1} already deployed`);
+        // Deployment persists across rounds (flapsLevel), so guard against both a
+        // past-round deployment and one already placed this round.
+        if (state.flapsLevel >= i + 1 || slotOccupied(id, state)) return fail(`Flap ${i + 1} already deployed`);
         // Must be deployed in order; the previous flap counts whether deployed in a
         // past round (flapsLevel) or already placed earlier this round.
         if (i > 0 && state.flapsLevel < i && !slotOccupied(`flaps_${i}`, state)) {
@@ -101,7 +103,8 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
       group: 'gear',
       owner: 'pilot',
       validate(die, state): ValidResult {
-        if (slotOccupied(id, state)) return fail(`Landing gear ${i + 1} already deployed`);
+        // Deployment persists across rounds (gearDeployed).
+        if (state.gearDeployed[i] || slotOccupied(id, state)) return fail(`Landing gear ${i + 1} already deployed`);
         if (die !== a && die !== b) return fail(`This gear requires a ${a} or ${b}`);
         return ok();
       },
@@ -116,7 +119,8 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
       group: 'brakes',
       owner: 'pilot',
       validate(die, state): ValidResult {
-        if (slotOccupied(id, state)) return fail(`Brake ${value} already deployed`);
+        // Deployment persists across rounds (brakeLevel).
+        if (state.brakeLevel >= i + 1 || slotOccupied(id, state)) return fail(`Brake ${value} already deployed`);
         // Brakes deployed in order; previous may be from a past round or this round.
         if (i > 0 && state.brakeLevel < i && !slotOccupied(`brakes_${i}`, state)) {
           return fail(`Deploy the ${cfg.rules.brakes[i - 1]} brake first`);

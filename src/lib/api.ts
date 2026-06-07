@@ -22,8 +22,8 @@ async function callFunction<T>(
   return data as T;
 }
 
-export async function createRoom(role: Role = 'pilot'): Promise<{ roomCode: string; gameId: string; role: Role }> {
-  return callFunction('create-room', { role });
+export async function createRoom(role: Role = 'pilot', destination?: string): Promise<{ roomCode: string; gameId: string; role: Role }> {
+  return callFunction('create-room', { role, destination });
 }
 
 export async function joinRoom(code: string): Promise<{ gameId: string; role: Role }> {

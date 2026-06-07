@@ -22,6 +22,9 @@ export interface GameState {
   /** Who places first this round (alternates; pilot in round 1). */
   firstPlayer: Role;
 
+  /** Chosen destination airport name (for display). */
+  airportName: string;
+
   /** Plane position on the approach track (1-indexed); airport = approachTrackLength. */
   approachPos: number;
 

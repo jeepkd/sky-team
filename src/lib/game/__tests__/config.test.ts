@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_CONFIG } from '../config';
+import { DEFAULT_CONFIG, DESTINATIONS, makeConfig } from '../config';
 
 describe('DEFAULT_CONFIG — shape & rulebook values', () => {
   const { rules, airport } = DEFAULT_CONFIG;
@@ -40,5 +40,20 @@ describe('DEFAULT_CONFIG — shape & rulebook values', () => {
   it('airport has a name and a positive track length', () => {
     expect(airport.name.length).toBeGreaterThan(0);
     expect(airport.approachTrackLength).toBeGreaterThan(0);
+  });
+});
+
+describe('destinations', () => {
+  it('has multiple destinations with traffic', () => {
+    expect(DESTINATIONS.length).toBeGreaterThanOrEqual(2);
+    DESTINATIONS.forEach((d) => {
+      expect(d.id.length).toBeGreaterThan(0);
+      expect(d.trafficSlots.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('makeConfig selects by id and falls back to the first destination', () => {
+    expect(makeConfig('hnd').airport.id).toBe('hnd');
+    expect(makeConfig('nope').airport.id).toBe(DESTINATIONS[0].id);
   });
 });

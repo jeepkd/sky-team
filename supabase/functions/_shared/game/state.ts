@@ -8,6 +8,7 @@ export function createInitialState(cfg: GameConfig): GameState {
     phase: 'LOBBY',
     turn: 'pilot',
     firstPlayer: 'pilot',
+    airportName: cfg.airport.name,
     approachPos: 1,
     axisTilt: 0,
     aeroBlue: cfg.rules.aeroBlueStart,

@@ -81,7 +81,7 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
       group: 'flaps',
       owner: 'copilot',
       validate(die, state): ValidResult {
-        if (slotOccupied(id, state)) return fail(`Flap ${i + 1} already deployed`);
+        if (state.flapsLevel >= i + 1 || slotOccupied(id, state)) return fail(`Flap ${i + 1} already deployed`);
         if (i > 0 && state.flapsLevel < i && !slotOccupied(`flaps_${i}`, state)) {
           return fail(`Deploy flap ${i} before flap ${i + 1}`);
         }
@@ -99,7 +99,7 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
       group: 'gear',
       owner: 'pilot',
       validate(die, state): ValidResult {
-        if (slotOccupied(id, state)) return fail(`Landing gear ${i + 1} already deployed`);
+        if (state.gearDeployed[i] || slotOccupied(id, state)) return fail(`Landing gear ${i + 1} already deployed`);
         if (die !== a && die !== b) return fail(`This gear requires a ${a} or ${b}`);
         return ok();
       },
@@ -114,7 +114,7 @@ export function buildSlots(cfg: GameConfig): SlotDef[] {
       group: 'brakes',
       owner: 'pilot',
       validate(die, state): ValidResult {
-        if (slotOccupied(id, state)) return fail(`Brake ${value} already deployed`);
+        if (state.brakeLevel >= i + 1 || slotOccupied(id, state)) return fail(`Brake ${value} already deployed`);
         if (i > 0 && state.brakeLevel < i && !slotOccupied(`brakes_${i}`, state)) {
           return fail(`Deploy the ${cfg.rules.brakes[i - 1]} brake first`);
         }

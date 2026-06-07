@@ -9,6 +9,7 @@ import { placeDie, rollDice, reroll as rerollApi, triggerAiTick, sendMessage } f
 import { useChat } from '@/hooks/useChat';
 import { sounds } from '@/lib/sounds';
 import { ApproachTrack } from '@/components/approach/ApproachTrack';
+import { AltitudeTrack } from '@/components/approach/AltitudeTrack';
 import { DiceHand } from '@/components/dice/DiceHand';
 import { DieToken } from '@/components/dice/DieToken';
 import { ToastList } from '@/components/ui/Toast';
@@ -45,7 +46,6 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
   const opponentDiceCount = gameState.remaining[opponentRole].length;
   const isFinalRound = gameState.round >= cfg.rules.totalRounds;
   const coffeeCost = selectedDie !== null && adjusted !== null ? Math.abs(adjusted - selectedDie) : 0;
-  const altitudeFt = (cfg.rules.totalRounds - gameState.round) * 1000;
 
   useEffect(() => {
     if (gameState.phase === 'LOBBY' || gameState.phase === 'ENDED') return;
@@ -146,7 +146,7 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
       <header className="border-b border-cockpit-border bg-cockpit-surface/60 px-3 py-2 flex items-center gap-2 sm:gap-4 text-xs flex-wrap">
         <span className="text-cockpit-accent font-bold tracking-widest">✈ SKY TEAM</span>
         <span className="text-gray-600">|</span>
-        <span className="uppercase tracking-widest text-gray-500">{cfg.airport.name}</span>
+        <span className="uppercase tracking-widest text-gray-500">{gameState.airportName}</span>
         <div className="ml-auto flex items-center gap-3">
           <span className="uppercase tracking-widest text-gray-500">☕ <span className={gameState.coffee > 0 ? 'text-amber-400' : 'text-gray-700'}>{gameState.coffee}</span></span>
           <span className="uppercase tracking-widest text-gray-500">⟳ <span className={gameState.reroll > 0 ? 'text-amber-400' : 'text-gray-700'}>{gameState.reroll}</span></span>
@@ -167,19 +167,13 @@ export function CockpitPanel({ session, gameState, myDice, hasAiPlayer = false, 
               'radial-gradient(120% 80% at 50% 0%, rgba(39,39,42,0.9), rgba(9,9,11,0.95)), repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0 2px, transparent 2px 6px)',
           }}
         >
-          {/* Top: the two cockpit screens */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 mb-3">
-            <Screen title="Current Position">
+          {/* Top: the two vertical cockpit screens (Position + Altitude) */}
+          <div className="flex justify-center gap-3 mb-4">
+            <Screen title="Position">
               <ApproachTrack length={cfg.airport.approachTrackLength} position={gameState.approachPos} traffic={gameState.traffic} />
             </Screen>
             <Screen title="Altitude" accent="blue">
-              <div className="flex items-baseline gap-2 justify-center py-1">
-                <span className="text-3xl font-bold text-blue-300 tabular-nums">{altitudeFt}</span>
-                <span className="text-xs text-gray-500 uppercase">ft</span>
-              </div>
-              <div className="text-center text-[10px] uppercase tracking-widest text-gray-500">
-                Round {gameState.round}/{cfg.rules.totalRounds} · {gameState.firstPlayer === 'pilot' ? 'PLT first' : 'CPL first'}
-              </div>
+              <AltitudeTrack round={gameState.round} totalRounds={cfg.rules.totalRounds} rerollRounds={cfg.rules.rerollRounds} />
             </Screen>
           </div>
 

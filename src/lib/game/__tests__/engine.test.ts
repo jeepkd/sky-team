@@ -87,6 +87,17 @@ describe('buildSlots', () => {
     expect(c1.validate(5, makeState({ coffee: 0 }), cfg).ok).toBe(true);
     expect(c1.validate(5, makeState({ coffee: cfg.rules.coffeeMax }), cfg).ok).toBe(false);
   });
+
+  it('keeps deployment across rounds: gear/flaps/brakes are not re-placeable', () => {
+    const gear1 = slots.find((s) => s.id === 'gear_1')!; // 1/2
+    expect(gear1.validate(1, makeState({ gearDeployed: [true, false, false] }), cfg).ok).toBe(false);
+
+    const flap1 = slots.find((s) => s.id === 'flaps_1')!;
+    expect(flap1.validate(1, makeState({ flapsLevel: 1 }), cfg).ok).toBe(false);
+
+    const brake1 = slots.find((s) => s.id === 'brakes_1')!;
+    expect(brake1.validate(2, makeState({ brakeLevel: 1 }), cfg).ok).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

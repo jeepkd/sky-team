@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { handleCors, json } from '../_shared/cors.ts';
-import { DEFAULT_CONFIG } from '../_shared/game/config.ts';
+import { makeConfig } from '../_shared/game/config.ts';
 import { createInitialState } from '../_shared/game/state.ts';
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -18,7 +18,7 @@ Deno.serve(async (req: Request) => {
   const clientId = req.headers.get('x-client-id');
   if (!clientId) return json({ error: 'x-client-id header required' }, 400);
 
-  let body: { role?: string } = {};
+  let body: { role?: string; destination?: string } = {};
   try { body = await req.json(); } catch { /* no body is fine */ }
 
   const supabase = createClient(
@@ -26,7 +26,7 @@ Deno.serve(async (req: Request) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  const cfg = DEFAULT_CONFIG;
+  const cfg = makeConfig(body.destination);
   const state = createInitialState(cfg);
 
   let roomCode = '';
