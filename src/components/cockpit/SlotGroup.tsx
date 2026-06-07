@@ -56,6 +56,17 @@ function valueHint(slotId: string, cfg: GameConfig): string | null {
   return null;
 }
 
+/** Returns true if the switch slot was deployed in a *previous* round (via persistent state). */
+function isDeployedPersistent(slotId: string, gameState: GameState): boolean {
+  const parts = slotId.split('_');
+  const group = parts[0];
+  const i = Number(parts[parts.length - 1]) - 1;
+  if (group === 'gear') return gameState.gearDeployed?.[i] === true;
+  if (group === 'flaps') return (gameState.flapsLevel ?? 0) >= i + 1;
+  if (group === 'brakes') return (gameState.brakeLevel ?? 0) >= i + 1;
+  return false;
+}
+
 function useSlotState(slot: SlotDef, gameState: GameState, myRole: Role, selectedDie: number | null, cfg: GameConfig) {
   const placed = gameState.placed.find((p) => p.slotId === slot.id);
   const isValid =
@@ -73,13 +84,17 @@ function SwitchCell({ slot, gameState, myRole, selectedDie, onSlotClick, cfg }: 
   const colors = OWNER_COLORS[slot.owner];
   const hint = valueHint(slot.id, cfg);
 
+  // A slot is "deployed" if it was placed this round OR was deployed in a prior round.
+  const persistentlyDeployed = isDeployedPersistent(slot.id, gameState);
+  const deployed = !!placed || persistentlyDeployed;
+
   return (
     <div className="flex flex-col items-center gap-1">
       {/* status light */}
       <span
         className={[
           'w-2.5 h-2.5 rounded-full border',
-          placed
+          deployed
             ? 'bg-green-400 border-green-300 shadow-[0_0_8px_rgba(74,222,128,0.9)]'
             : 'bg-zinc-800 border-zinc-600',
         ].join(' ')}
@@ -89,6 +104,11 @@ function SwitchCell({ slot, gameState, myRole, selectedDie, onSlotClick, cfg }: 
       {/* lever / die */}
       {placed ? (
         <DieToken value={placed.value} role={placed.role} size="sm" />
+      ) : persistentlyDeployed ? (
+        /* Deployed in a previous round — show locked lever, no die */
+        <div className="w-9 h-9 rounded-md border-2 border-green-800 bg-green-950/50 flex items-center justify-center">
+          <span className="w-1 h-4 rounded-full bg-green-500" />
+        </div>
       ) : (
         <button
           onClick={isValid ? () => onSlotClick(slot.id) : undefined}

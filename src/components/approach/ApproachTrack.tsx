@@ -51,11 +51,23 @@ export const ApproachTrack = memo(function ApproachTrack({ length, position, tra
                 {isAirport ? 'RWY' : pos}
               </span>
               {count > 0 && (
-                <span className="ml-auto flex items-center gap-0.5 text-red-400">
-                  {Array.from({ length: Math.min(count, 3) }).map((_, i) => (
-                    <span key={i} className="text-[11px]">✈</span>
-                  ))}
-                  {count > 3 && <span className="text-[8px]">×{count}</span>}
+                <span className="ml-auto flex items-center">
+                  {/* Stack tokens slightly offset so each is individually visible */}
+                  <span className="relative flex items-center" style={{ width: 14 + (Math.min(count, 4) - 1) * 8 }}>
+                    {Array.from({ length: Math.min(count, 4) }).map((_, i) => (
+                      <span
+                        key={i}
+                        className="absolute flex items-center justify-center w-[14px] h-[14px] rounded-full bg-red-700 border border-red-400 text-[8px] text-red-100"
+                        style={{ left: i * 8, zIndex: i }}
+                        title={`${count} airplane${count > 1 ? 's' : ''}`}
+                      >
+                        ✈
+                      </span>
+                    ))}
+                  </span>
+                  {count > 4 && (
+                    <span className="ml-1 text-[8px] font-mono text-red-400">×{count}</span>
+                  )}
                 </span>
               )}
             </div>
